@@ -44,4 +44,9 @@ public interface IChatRenderer
     /// Renders token usage information and updates session totals.
     /// </summary>
     void RenderTokenInfo(int inputTokens, int outputTokens, ChatSession session);
+
+    /// <summary>
+    /// Renders the status bar above the input area.
+    /// </summary>
+    void RenderStatusBar(ChatSession session);
 }

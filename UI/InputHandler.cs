@@ -25,14 +25,15 @@ public class InputHandler : IInputHandler
         _fileService = fileService;
     }
 
-    public string? ReadInput()
+    public string? ReadInput(ChatSession session)
     {
-        // Add spacing before input area
-        AnsiConsole.WriteLine();
-
         // Ensure we have room in the buffer
-        EnsureBufferSpace(12);
+        EnsureBufferSpace(14);
 
+        // Status bar (model, session, tokens)
+        var totalTokens = session.TotalInputTokens + session.TotalOutputTokens;
+        AnsiConsole.MarkupLine($"  [bold mediumspringgreen]{session.Model}[/] [dim]•[/] [dim]Session[/] [bold]{session.Id}[/] [dim]•[/] [dim]{session.Messages.Count} msgs • {totalTokens:N0} tokens[/]");
+        
         // Top border
         _borderWidth = Console.WindowWidth - 1;
         AnsiConsole.MarkupLine($"[{BorderColor}]{new string('─', _borderWidth)}[/]");

@@ -152,7 +152,7 @@ public class CommandHandler : ICommandHandler
                 session.Model = selected;
                 return Task.FromResult(CommandResult.Ok($"Switched to model: {selected}"));
             }
-            return Task.FromResult(CommandResult.Ok("")); // Cancelled or same model
+            return Task.FromResult(CommandResult.Ok(""));
         }
 
         var target = args[0];

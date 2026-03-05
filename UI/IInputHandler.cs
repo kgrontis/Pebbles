@@ -11,7 +11,7 @@ public interface IInputHandler
     /// <summary>
     /// Reads user input, returns null to exit.
     /// </summary>
-    string? ReadInput();
+    string? ReadInput(ChatSession session);
 }
 
 /// <summary>
@@ -51,6 +51,6 @@ public class FileSuggestion : ISuggestion
 
     public string DisplayText => _item.IsDirectory ? $"{_item.Name}/" : _item.Name;
     public string InsertText => _item.Path + (_item.IsDirectory ? "/" : "");
-    public string Description => _item.IsDirectory ? "[folder]" : _item.Extension;
+    public string Description => _item.IsDirectory ? "folder" : _item.Extension;
     public bool IsDirectory => _item.IsDirectory;
 }

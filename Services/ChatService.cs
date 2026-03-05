@@ -40,7 +40,7 @@ public class ChatService : IChatService
 
         while (true)
         {
-            var input = _inputHandler.ReadInput();
+            var input = _inputHandler.ReadInput(session);
 
             if (input is null)
                 break;

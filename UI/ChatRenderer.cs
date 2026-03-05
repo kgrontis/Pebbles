@@ -196,7 +196,7 @@ public class ChatRenderer : IChatRenderer
     public void RenderCommandResult(CommandResult result, ChatSession session)
     {
         AnsiConsole.WriteLine();
-        if (result.ShouldClear) { AnsiConsole.Clear(); RenderStatusBar(session); return; }
+        if (result.ShouldClear) { AnsiConsole.Clear(); RenderWelcome(session); return; }
         if (result.Message is not null)
         {
             var color = result.Success ? "dim" : "red";
@@ -206,15 +206,15 @@ public class ChatRenderer : IChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    private static void RenderStatusBar(ChatSession session)
+    public void RenderStatusBar(ChatSession session)
     {
-        var rule = new Rule($"[dim]{session.Model} • Session {session.Id} • {session.Messages.Count} messages • {session.TotalInputTokens + session.TotalOutputTokens:N0} tokens[/]")
-        {
-            Style = Style.Parse("dim grey"),
-            Justification = Justify.Center
-        };
-        AnsiConsole.Write(rule);
-        AnsiConsole.WriteLine();
+        // Just print the status bar - don't try to overwrite
+        // The InputHandler will handle clearing when it shows the input
+        var totalTokens = session.TotalInputTokens + session.TotalOutputTokens;
+        var statusBar = $"[bold mediumspringgreen]{session.Model}[/] [dim]•[/] [dim]Session[/] [bold]{session.Id}[/] [dim]•[/] [dim]{session.Messages.Count} msgs • {totalTokens:N0} tokens[/]";
+        
+        AnsiConsole.MarkupLine($"  {statusBar}");
+        AnsiConsole.MarkupLine($"  [dim grey]{new string('─', Math.Max(0, Console.WindowWidth - 4))}[/]");
     }
 
     public void RenderTokenInfo(int inputTokens, int outputTokens, ChatSession session)

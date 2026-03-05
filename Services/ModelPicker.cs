@@ -27,7 +27,7 @@ public class ModelPicker : IModelPicker
         var selectedIndex = Array.FindIndex(models, m => m == currentModel);
         if (selectedIndex < 0) selectedIndex = 0;
 
-        var startRow = Console.CursorTop + 1;
+        var startRow = Console.CursorTop;
         var maxDisplay = Math.Min(10, models.Length);
         var scrollOffset = 0;
 
