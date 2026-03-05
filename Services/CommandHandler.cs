@@ -13,12 +13,14 @@ public class CommandHandler : ICommandHandler
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
     private readonly IFileService _fileService;
+    private readonly IModelPicker _modelPicker;
 
-    public CommandHandler(PebblesOptions options, ContextManager contextManager, IFileService fileService)
+    public CommandHandler(PebblesOptions options, ContextManager contextManager, IFileService fileService, IModelPicker modelPicker)
     {
         _options = options;
         _contextManager = contextManager;
         _fileService = fileService;
+        _modelPicker = modelPicker;
         _commands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase)
         {
             ["/help"] = new SlashCommand
@@ -143,9 +145,14 @@ public class CommandHandler : ICommandHandler
 
         if (args.Length == 0)
         {
-            var list = string.Join("\n", models.Select(m =>
-                $"  {(m == session.Model ? "● " : "  ")}{m}{(m == session.Model ? " (current)" : "")}"));
-            return Task.FromResult(CommandResult.Ok($"Available models:\n{list}\n\nUsage: /model <name>"));
+            // Show interactive picker
+            var selected = _modelPicker.PickModel(models, session.Model);
+            if (selected is not null && selected != session.Model)
+            {
+                session.Model = selected;
+                return Task.FromResult(CommandResult.Ok($"Switched to model: {selected}"));
+            }
+            return Task.FromResult(CommandResult.Ok("")); // Cancelled or same model
         }
 
         var target = args[0];
