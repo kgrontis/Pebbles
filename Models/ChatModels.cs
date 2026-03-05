@@ -14,30 +14,67 @@ public enum MessageStatus
     Complete
 }
 
-public class ThinkingBlock
+/// <summary>
+/// Represents a thinking block in an AI response.
+/// </summary>
+public record ThinkingBlock
 {
-    public string Content { get; set; } = string.Empty;
-    public TimeSpan Duration { get; set; }
-    public bool IsCollapsed { get; set; } = true;
+    public string Content { get; init; } = string.Empty;
+    public TimeSpan Duration { get; init; }
+    public bool IsCollapsed { get; init; } = true;
 }
 
-public class ChatMessage
+/// <summary>
+/// Represents a single message in the chat conversation.
+/// </summary>
+public record ChatMessage
 {
-    public ChatRole Role { get; set; }
-    public string Content { get; set; } = string.Empty;
-    public ThinkingBlock? Thinking { get; set; }
-    public MessageStatus Status { get; set; } = MessageStatus.Complete;
-    public DateTime Timestamp { get; set; } = DateTime.Now;
-    public int TokenCount { get; set; }
+    public ChatRole Role { get; init; }
+    public string Content { get; init; } = string.Empty;
+    public ThinkingBlock? Thinking { get; init; }
+    public MessageStatus Status { get; init; } = MessageStatus.Complete;
+    public DateTime Timestamp { get; init; } = DateTime.Now;
+    public int TokenCount { get; init; }
+
+    /// <summary>
+    /// Creates a user message.
+    /// </summary>
+    public static ChatMessage User(string content, int tokenCount) => new()
+    {
+        Role = ChatRole.User,
+        Content = content,
+        TokenCount = tokenCount
+    };
+
+    /// <summary>
+    /// Creates an assistant message.
+    /// </summary>
+    public static ChatMessage Assistant(string content, int tokenCount, ThinkingBlock? thinking = null) => new()
+    {
+        Role = ChatRole.Assistant,
+        Content = content,
+        TokenCount = tokenCount,
+        Thinking = thinking
+    };
 }
 
+/// <summary>
+/// Represents the current chat session state.
+/// </summary>
 public class ChatSession
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public string Model { get; set; } = "pebbles-3.5-sonnet";
     public List<ChatMessage> Messages { get; } = [];
     public bool CompactMode { get; set; }
     public int TotalInputTokens { get; set; }
     public int TotalOutputTokens { get; set; }
-    public double TotalCost => (TotalInputTokens * 0.003 + TotalOutputTokens * 0.015) / 1000.0;
+
+    public double TotalCost =>
+        (TotalInputTokens * 0.003 + TotalOutputTokens * 0.015) / 1000.0;
+
+    /// <summary>
+    /// Creates a new session with the specified model.
+    /// </summary>
+    public static ChatSession Create(string model) => new() { Model = model };
 }

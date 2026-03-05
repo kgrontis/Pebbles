@@ -2,7 +2,10 @@ namespace Pebbles.Services;
 
 using Pebbles.Models;
 
-public class MockAIProvider
+/// <summary>
+/// Mock AI provider for testing and development.
+/// </summary>
+public class MockAIProvider : IAIProvider
 {
     private static readonly Random _rng = new();
 

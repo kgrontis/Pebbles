@@ -3,7 +3,10 @@ namespace Pebbles.UI;
 using Spectre.Console;
 using Pebbles.Models;
 
-public class InputHandler
+/// <summary>
+/// Handles user input with history and autocomplete.
+/// </summary>
+public class InputHandler : IInputHandler
 {
     private readonly List<SlashCommand> _commands;
     private readonly List<string> _inputHistory = [];

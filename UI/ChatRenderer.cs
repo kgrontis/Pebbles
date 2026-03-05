@@ -3,29 +3,26 @@ namespace Pebbles.UI;
 using Spectre.Console;
 using Pebbles.Models;
 using Pebbles.Services;
+using Pebbles.Fonts;
 
-public class ChatRenderer
+/// <summary>
+/// Handles all chat UI rendering using Spectre.Console.
+/// </summary>
+public class ChatRenderer : IChatRenderer
 {
-    private readonly ChatSession _session;
-
-    public ChatRenderer(ChatSession session)
-    {
-        _session = session;
-    }
-
-    public void RenderWelcome()
+    public void RenderWelcome(ChatSession session)
     {
         AnsiConsole.Clear();
 
-        var banner = new FigletText("Pebbles")
+        var banner = new FigletText(FigletFontLoader.Slant, "Pebbles")
             .Color(Color.MediumPurple1);
         AnsiConsole.Write(banner);
 
         var panel = new Panel(
             new Markup(
                 "[dim]Your AI coding assistant in the terminal[/]\n" +
-                $"[dim]Model:[/] [bold mediumspringgreen]{_session.Model}[/]  " +
-                $"[dim]Session:[/] [bold]{_session.Id}[/]\n\n" +
+                $"[dim]Model:[/] [bold mediumspringgreen]{session.Model}[/]  " +
+                $"[dim]Session:[/] [bold]{session.Id}[/]\n\n" +
                 "[dim]Type a message to chat, or[/] [bold yellow]/help[/] [dim]for commands.[/]\n" +
                 "[dim]Press[/] [bold yellow]Ctrl+C[/] [dim]or type[/] [bold yellow]/exit[/] [dim]to quit.[/]"))
         {
@@ -50,7 +47,7 @@ public class ChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    public async Task RenderThinkingAsync(Services.MockAIProvider provider, MockResponse response)
+    public async Task RenderThinkingAsync(IAIProvider provider, MockResponse response)
     {
         var thinkingContent = "";
 
@@ -65,7 +62,7 @@ public class ChatRenderer
         }
 
         // Render completed thinking block as a collapsed panel
-        var thinkingText = FormatDimText(thinkingContent.Trim());
+        var thinkingText = Markup.Escape(thinkingContent.Trim());
         var thinkingPanel = new Panel(new Markup(thinkingText))
         {
             Border = BoxBorder.Rounded,
@@ -82,21 +79,18 @@ public class ChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    public async Task RenderAssistantStreamAsync(Services.MockAIProvider provider, MockResponse response)
+    public async Task RenderAssistantStreamAsync(IAIProvider provider, MockResponse response)
     {
         AnsiConsole.Markup("[bold mediumspringgreen]⬡ Pebbles[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.WriteLine();
 
-        var fullContent = "";
         var inCodeBlock = false;
         var inTable = false;
         var currentLine = "";
 
         await foreach (var chunk in provider.StreamContentAsync(response))
         {
-            fullContent += chunk;
-
             foreach (var c in chunk)
             {
                 currentLine += c;
@@ -159,7 +153,6 @@ public class ChatRenderer
             }
 
             var escaped = Markup.Escape(line);
-            // Bold header cells
             if (!inTable)
             {
                 AnsiConsole.Markup($"  [bold]{escaped}[/]");
@@ -249,19 +242,14 @@ public class ChatRenderer
         return text;
     }
 
-    private static string FormatDimText(string text)
-    {
-        return Markup.Escape(text).Replace("\n", "\n");
-    }
-
-    public void RenderCommandResult(CommandResult result)
+    public void RenderCommandResult(CommandResult result, ChatSession session)
     {
         AnsiConsole.WriteLine();
 
         if (result.ShouldClear)
         {
             AnsiConsole.Clear();
-            RenderStatusBar();
+            RenderStatusBar(session);
             return;
         }
 
@@ -275,9 +263,9 @@ public class ChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    public void RenderStatusBar()
+    private static void RenderStatusBar(ChatSession session)
     {
-        var rule = new Rule($"[dim]{_session.Model} • Session {_session.Id} • {_session.Messages.Count} messages • {_session.TotalInputTokens + _session.TotalOutputTokens:N0} tokens[/]")
+        var rule = new Rule($"[dim]{session.Model} • Session {session.Id} • {session.Messages.Count} messages • {session.TotalInputTokens + session.TotalOutputTokens:N0} tokens[/]")
         {
             Style = Style.Parse("dim grey"),
             Justification = Justify.Center
@@ -286,15 +274,15 @@ public class ChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    public void RenderTokenInfo(int inputTokens, int outputTokens)
+    public void RenderTokenInfo(int inputTokens, int outputTokens, ChatSession session)
     {
-        _session.TotalInputTokens += inputTokens;
-        _session.TotalOutputTokens += outputTokens;
+        session.TotalInputTokens += inputTokens;
+        session.TotalOutputTokens += outputTokens;
 
         AnsiConsole.MarkupLine(
             $"  [dim grey]⎯ {inputTokens:N0} input → {outputTokens:N0} output • " +
             $"${(inputTokens * 0.003 + outputTokens * 0.015) / 1000.0:F4} • " +
-            $"{_session.TotalInputTokens + _session.TotalOutputTokens:N0} total tokens[/]");
+            $"{session.TotalInputTokens + session.TotalOutputTokens:N0} total tokens[/]");
         AnsiConsole.WriteLine();
     }
 }

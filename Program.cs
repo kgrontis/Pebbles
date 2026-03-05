@@ -1,80 +1,38 @@
-﻿using Spectre.Console;
-using Pebbles.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Pebbles.Configuration;
 using Pebbles.Services;
 using Pebbles.UI;
 
-var session = new ChatSession();
-var provider = new MockAIProvider();
-var commands = new CommandHandler();
-var renderer = new ChatRenderer(session);
-var inputHandler = new InputHandler(commands.Commands);
+// Build configuration
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: false)
+    .Build();
 
-renderer.RenderWelcome();
+// Configure options (AOT-friendly manual binding)
+var options = new PebblesOptions();
+var section = configuration.GetSection(PebblesOptions.SectionName);
+options.DefaultModel = section["DefaultModel"] ?? options.DefaultModel;
+options.AvailableModels = section.GetSection("AvailableModels").Get<string[]>() ?? options.AvailableModels;
+options.InputCostPer1K = section.GetValue("InputCostPer1K", options.InputCostPer1K);
+options.OutputCostPer1K = section.GetValue("OutputCostPer1K", options.OutputCostPer1K);
+options.TokenEstimationMultiplier = section.GetValue("TokenEstimationMultiplier", options.TokenEstimationMultiplier);
 
-while (true)
-{
-    var input = inputHandler.ReadInput();
-
-    if (input is null)
-        break;
-
-    input = input.Trim();
-    if (string.IsNullOrWhiteSpace(input))
-        continue;
-
-    // Handle slash commands
-    if (commands.IsCommand(input))
+// Build service provider
+using var serviceProvider = new ServiceCollection()
+    .AddSingleton(options)
+    .AddSingleton<IAIProvider, MockAIProvider>()
+    .AddSingleton<ICommandHandler, CommandHandler>()
+    .AddSingleton<IChatRenderer, ChatRenderer>()
+    .AddSingleton<IInputHandler>(sp =>
     {
-        var result = await commands.ExecuteAsync(input, session);
-        renderer.RenderCommandResult(result);
+        var commandHandler = sp.GetRequiredService<ICommandHandler>();
+        return new InputHandler(commandHandler.Commands);
+    })
+    .AddSingleton<IChatService, ChatService>()
+    .BuildServiceProvider();
 
-        if (result.ShouldExit)
-            break;
-
-        continue;
-    }
-
-    // User message
-    var userMsg = new ChatMessage
-    {
-        Role = ChatRole.User,
-        Content = input,
-        TokenCount = EstimateTokens(input)
-    };
-    session.Messages.Add(userMsg);
-    renderer.RenderUserMessage(input);
-
-    // Get mock response
-    var response = provider.GetResponse(input);
-
-    // Render thinking (unless compact mode)
-    if (!session.CompactMode)
-    {
-        await renderer.RenderThinkingAsync(provider, response);
-    }
-
-    // Stream assistant response
-    await renderer.RenderAssistantStreamAsync(provider, response);
-
-    // Record assistant message
-    var assistantMsg = new ChatMessage
-    {
-        Role = ChatRole.Assistant,
-        Content = response.Content,
-        Thinking = new ThinkingBlock
-        {
-            Content = response.Thinking,
-            Duration = response.ThinkingDuration
-        },
-        TokenCount = EstimateTokens(response.Content)
-    };
-    session.Messages.Add(assistantMsg);
-
-    // Show token info
-    var inputTokens = EstimateTokens(input);
-    var outputTokens = EstimateTokens(response.Content) + EstimateTokens(response.Thinking);
-    renderer.RenderTokenInfo(inputTokens, outputTokens);
-}
-
-static int EstimateTokens(string text) =>
-    (int)Math.Ceiling(text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length * 1.3);
+// Run the application
+var chatService = serviceProvider.GetRequiredService<IChatService>();
+await chatService.RunAsync();
