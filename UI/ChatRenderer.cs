@@ -236,14 +236,66 @@ public class ChatRenderer : IChatRenderer
         AnsiConsole.WriteLine();
 
         var content = new System.Text.StringBuilder();
+        var thinking = new System.Text.StringBuilder();
         var tokenCount = 0;
+        var thinkingTokenCount = 0;
+
         var currentLine = new System.Text.StringBuilder();
+        var currentThinkingLine = new System.Text.StringBuilder();
         var inCodeBlock = false;
+        var inThinkingBlock = false;
+        var thinkingStarted = false;
 
         await foreach (var token in provider.StreamResponseAsync(userInput))
         {
             tokenCount++;
             if (string.IsNullOrEmpty(token)) continue;
+
+            // Check if this is thinking content
+            if (token.StartsWith("[THINKING]"))
+            {
+                var thinkingToken = token[10..]; // Remove [THINKING] prefix
+                thinking.Append(thinkingToken);
+                thinkingTokenCount++;
+                
+                if (!thinkingStarted)
+                {
+                    thinkingStarted = true;
+                    inThinkingBlock = true;
+                    // Start thinking panel
+                    AnsiConsole.MarkupLine("  [dim grey]┌─ thinking ───────────────────────────────[/]");
+                }
+                
+                // Render thinking content with styling
+                foreach (var c in thinkingToken)
+                {
+                    if (c == '\n')
+                    {
+                        var lineText = currentThinkingLine.ToString();
+                        currentThinkingLine.Clear();
+                        AnsiConsole.MarkupLine($"  [dim grey]│[/] [italic grey]{Markup.Escape(lineText)}[/]");
+                    }
+                    else
+                    {
+                        currentThinkingLine.Append(c);
+                    }
+                }
+                continue;
+            }
+
+            // Regular content
+            if (inThinkingBlock)
+            {
+                // End thinking block
+                if (currentThinkingLine.Length > 0)
+                {
+                    AnsiConsole.MarkupLine($"  [dim grey]│[/] [italic grey]{Markup.Escape(currentThinkingLine.ToString())}[/]");
+                    currentThinkingLine.Clear();
+                }
+                AnsiConsole.MarkupLine("  [dim grey]└──────────────────────────────────────────[/]");
+                AnsiConsole.WriteLine();
+                inThinkingBlock = false;
+            }
 
             content.Append(token);
             
@@ -285,6 +337,17 @@ public class ChatRenderer : IChatRenderer
             }
         }
 
+        // Close any open blocks
+        if (inThinkingBlock)
+        {
+            if (currentThinkingLine.Length > 0)
+            {
+                AnsiConsole.MarkupLine($"  [dim grey]│[/] [italic grey]{Markup.Escape(currentThinkingLine.ToString())}[/]");
+            }
+            AnsiConsole.MarkupLine("  [dim grey]└──────────────────────────────────────────[/]");
+            AnsiConsole.WriteLine();
+        }
+
         if (currentLine.Length > 0)
         {
             if (inCodeBlock)
@@ -304,7 +367,8 @@ public class ChatRenderer : IChatRenderer
         catch (IOException) { }
         
         var outputTokens = (int)Math.Ceiling(tokenCount * 0.5);
-        return (content.ToString(), string.Empty, TimeSpan.Zero, outputTokens);
+        var thinkingDuration = thinkingTokenCount > 0 ? TimeSpan.FromMilliseconds(thinkingTokenCount * 50) : TimeSpan.Zero;
+        return (content.ToString(), thinking.ToString(), thinkingDuration, outputTokens);
     }
     
     private static string FormatMarkdownLine(string line)

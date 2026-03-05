@@ -144,12 +144,21 @@ public class DashScopeProvider : IAIProvider
                 continue;
 
             var delta = chunk.Choices[0].Delta;
-            var tokenContent = delta?.Content ?? delta?.ReasoningContent;
-            if (string.IsNullOrEmpty(tokenContent))
+            
+            // Handle reasoning/thinking content separately from regular content
+            if (!string.IsNullOrEmpty(delta?.ReasoningContent))
+            {
+                responseContent.Append(delta.ReasoningContent);
+                // Prefix thinking content with marker for renderer to style
+                yield return $"[THINKING]{delta.ReasoningContent}";
                 continue;
-
-            responseContent.Append(tokenContent);
-            yield return tokenContent;
+            }
+            
+            if (!string.IsNullOrEmpty(delta?.Content))
+            {
+                responseContent.Append(delta.Content);
+                yield return delta.Content;
+            }
         }
 
         // Store final stats
