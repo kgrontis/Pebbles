@@ -27,6 +27,7 @@ options.SystemPrompt = section["SystemPrompt"] ?? options.SystemPrompt;
 var services = new ServiceCollection();
 services.AddSingleton(options);
 services.AddSingleton<ContextManager>();
+services.AddSingleton<IFileService, FileService>();
 
 // Choose AI provider based on configuration
 if (options.Provider.Equals("dashscope", StringComparison.OrdinalIgnoreCase))
@@ -41,13 +42,15 @@ else
 services.AddSingleton<ICommandHandler, CommandHandler>(sp =>
 {
     var ctx = sp.GetRequiredService<ContextManager>();
-    return new CommandHandler(options, ctx);
+    var fileSvc = sp.GetRequiredService<IFileService>();
+    return new CommandHandler(options, ctx, fileSvc);
 });
 services.AddSingleton<IChatRenderer, ChatRenderer>();
 services.AddSingleton<IInputHandler>(sp =>
 {
-    var commandHandler = sp.GetRequiredService<ICommandHandler>();
-    return new InputHandler(commandHandler.Commands);
+    var cmdHandler = sp.GetRequiredService<ICommandHandler>();
+    var fileSvc = sp.GetRequiredService<IFileService>();
+    return new InputHandler(cmdHandler.Commands, fileSvc);
 });
 services.AddSingleton<IChatService, ChatService>();
 

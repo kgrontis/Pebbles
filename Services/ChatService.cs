@@ -1,5 +1,6 @@
 namespace Pebbles.Services;
 
+using Spectre.Console;
 using Pebbles.Models;
 using Pebbles.UI;
 using Pebbles.Configuration;
@@ -13,6 +14,7 @@ public class ChatService : IChatService
     private readonly ICommandHandler _commandHandler;
     private readonly IChatRenderer _renderer;
     private readonly IInputHandler _inputHandler;
+    private readonly IFileService _fileService;
     private readonly PebblesOptions _options;
 
     public ChatService(
@@ -20,12 +22,14 @@ public class ChatService : IChatService
         ICommandHandler commandHandler,
         IChatRenderer renderer,
         IInputHandler inputHandler,
+        IFileService fileService,
         PebblesOptions options)
     {
         _aiProvider = aiProvider;
         _commandHandler = commandHandler;
         _renderer = renderer;
         _inputHandler = inputHandler;
+        _fileService = fileService;
         _options = options;
     }
 
@@ -57,15 +61,23 @@ public class ChatService : IChatService
                 continue;
             }
 
+            // Process file references (@file.cs syntax)
+            var parsed = _fileService.ParseFileReferences(input);
+            if (parsed.HasFiles)
+            {
+                await LoadFilesAsync(parsed);
+                input = parsed.CleanInput;
+            }
+
             // User message
             var inputTokens = EstimateTokens(input);
-            var userMsg = ChatMessage.User(input, inputTokens);
+            var userMsg = ChatMessage.User(parsed.Original, inputTokens);
             session.Messages.Add(userMsg);
             _aiProvider.AddToHistory(userMsg);
-            _renderer.RenderUserMessage(input);
+            _renderer.RenderUserMessage(parsed.Original);
 
             // Stream assistant response directly from API
-            var (content, thinking, thinkingDuration, outputTokens) = 
+            var (content, thinking, thinkingDuration, outputTokens) =
                 await _renderer.RenderAssistantLiveStreamAsync(_aiProvider, input, session.CompactMode);
 
             // Record assistant message
@@ -86,6 +98,49 @@ public class ChatService : IChatService
             _renderer.RenderTokenInfo(inputTokens, outputTokens, session);
         }
     }
+
+    private async Task LoadFilesAsync(ParsedInput parsed)
+    {
+        AnsiConsole.MarkupLine("[dim]Loading files...[/]");
+        var loaded = 0;
+        var failed = 0;
+
+        foreach (var fileRef in parsed.FileReferences)
+        {
+            var content = _fileService.ReadFile(fileRef.Path);
+
+            if (content.Success)
+            {
+                loaded++;
+                AnsiConsole.MarkupLine($"[green]✓[/] [dim]{fileRef.Path}[/] ({FormatSize(content.Size)})");
+            }
+            else
+            {
+                failed++;
+                AnsiConsole.MarkupLine($"[red]✗[/] [dim]{fileRef.Path}[/]: {content.Error}");
+            }
+        }
+
+        if (loaded > 0)
+        {
+            AnsiConsole.MarkupLine($"[dim]Loaded {loaded} file(s) into context[/]");
+        }
+
+        if (failed > 0)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Warning: {failed} file(s) could not be loaded[/]");
+        }
+
+        AnsiConsole.WriteLine();
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024} KB",
+            _ => $"{bytes / (1024 * 1024):F1} MB"
+        };
 
     private int EstimateTokens(string text) =>
         (int)Math.Ceiling(text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length * _options.TokenEstimationMultiplier);

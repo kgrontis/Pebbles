@@ -16,16 +16,18 @@ public class DashScopeProvider : IAIProvider
     private readonly HttpClient _httpClient;
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
+    private readonly IFileService _fileService;
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
     private TimeSpan _thinkingDuration = TimeSpan.Zero;
     private int _lastInputTokens = 0;
     private int _lastOutputTokens = 0;
 
-    public DashScopeProvider(PebblesOptions options, ContextManager contextManager)
+    public DashScopeProvider(PebblesOptions options, ContextManager contextManager, IFileService fileService)
     {
         _options = options;
         _contextManager = contextManager;
+        _fileService = fileService;
         _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(120)
@@ -161,9 +163,13 @@ public class DashScopeProvider : IAIProvider
     {
         // Build enhanced system prompt with context
         var context = _contextManager.GetContextForPrompt();
-        var systemPrompt = string.IsNullOrEmpty(context)
-            ? _options.SystemPrompt
-            : $"{_options.SystemPrompt}\n\n{context}";
+        var files = _fileService.FormatFilesForPrompt();
+
+        var systemPrompt = _options.SystemPrompt;
+        if (!string.IsNullOrEmpty(context))
+            systemPrompt += $"\n\n{context}";
+        if (!string.IsNullOrEmpty(files))
+            systemPrompt += $"\n\n{files}";
 
         var messages = new List<ChatMessageItem>
         {

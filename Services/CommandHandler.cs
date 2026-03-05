@@ -12,11 +12,13 @@ public class CommandHandler : ICommandHandler
     private readonly Dictionary<string, SlashCommand> _commands;
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
+    private readonly IFileService _fileService;
 
-    public CommandHandler(PebblesOptions options, ContextManager contextManager)
+    public CommandHandler(PebblesOptions options, ContextManager contextManager, IFileService fileService)
     {
         _options = options;
         _contextManager = contextManager;
+        _fileService = fileService;
         _commands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase)
         {
             ["/help"] = new SlashCommand
@@ -67,6 +69,27 @@ public class CommandHandler : ICommandHandler
                 Description = "Show loaded project context",
                 Usage = "/context",
                 Handler = HandleContext
+            },
+            ["/read"] = new SlashCommand
+            {
+                Name = "/read",
+                Description = "Read a file into context",
+                Usage = "/read <path>",
+                Handler = HandleRead
+            },
+            ["/files"] = new SlashCommand
+            {
+                Name = "/files",
+                Description = "List loaded files in context",
+                Usage = "/files",
+                Handler = HandleFiles
+            },
+            ["/clearfiles"] = new SlashCommand
+            {
+                Name = "/clearfiles",
+                Description = "Clear all loaded files from context",
+                Usage = "/clearfiles",
+                Handler = HandleClearFiles
             },
             ["/exit"] = new SlashCommand
             {
@@ -207,6 +230,81 @@ public class CommandHandler : ICommandHandler
 
         return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
     }
+
+    private Task<CommandResult> HandleRead(string[] args, ChatSession session)
+    {
+        if (args.Length == 0)
+        {
+            return Task.FromResult(CommandResult.Fail("Usage: /read <path>\nExample: /read Program.cs"));
+        }
+
+        var path = string.Join(" ", args);
+        var content = _fileService.ReadFile(path);
+
+        if (!content.Success)
+        {
+            return Task.FromResult(CommandResult.Fail(content.Error ?? "Unknown error reading file"));
+        }
+
+        var lines = new List<string>
+        {
+            "",
+            $"[bold green]✓[/] Loaded: [dim]{path}[/] ({FormatSize(content.Size)})",
+            "",
+            $"[dim]─── {path} ───[/]",
+            Markup.Escape(content.Content),
+            "[dim]───[/]",
+            ""
+        };
+
+        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+    }
+
+    private Task<CommandResult> HandleFiles(string[] args, ChatSession session)
+    {
+        var files = _fileService.LoadedFiles;
+
+        if (files.Count == 0)
+        {
+            return Task.FromResult(CommandResult.Ok("\n[dim]No files loaded. Use /read <path> or @file.cs syntax to load files.[/]\n"));
+        }
+
+        var lines = new List<string>
+        {
+            "",
+            $"[bold]Loaded Files ({files.Count})[/]",
+            ""
+        };
+
+        foreach (var (path, content) in files)
+        {
+            var status = content.Success ? "[green]✓[/]" : "[red]✗[/]";
+            var size = content.Success ? FormatSize(content.Size) : content.Error;
+            lines.Add($"  {status} [dim]{path}[/] ({size})");
+        }
+
+        lines.Add("");
+        lines.Add("[dim]Files are included in AI context automatically.[/]");
+        lines.Add("[dim]Use /clearfiles to remove all files from context.[/]");
+
+        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+    }
+
+    private Task<CommandResult> HandleClearFiles(string[] args, ChatSession session)
+    {
+        var count = _fileService.LoadedFiles.Count;
+        _fileService.ClearFiles();
+
+        return Task.FromResult(CommandResult.Ok($"\n[dim]Cleared {count} file(s) from context.[/]\n"));
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024} KB",
+            _ => $"{bytes / (1024 * 1024):F1} MB"
+        };
 
     private Task<CommandResult> HandleExit(string[] args, ChatSession session)
     {

@@ -10,10 +10,12 @@ public class MockAIProvider : IAIProvider
     private static readonly Random _rng = new();
     private readonly List<ChatMessage> _conversationHistory = [];
     private readonly ContextManager _contextManager;
+    private readonly IFileService _fileService;
 
-    public MockAIProvider(ContextManager contextManager)
+    public MockAIProvider(ContextManager contextManager, IFileService fileService)
     {
         _contextManager = contextManager;
+        _fileService = fileService;
     }
 
     private static readonly List<MockResponse> _responses =

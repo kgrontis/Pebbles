@@ -2,33 +2,36 @@ namespace Pebbles.UI;
 
 using Spectre.Console;
 using Pebbles.Models;
+using Pebbles.Services;
 
 /// <summary>
-/// Handles user input with history and autocomplete.
+/// Handles user input with history, command autocomplete, and file picker.
 /// </summary>
 public class InputHandler : IInputHandler
 {
     private readonly List<SlashCommand> _commands;
+    private readonly IFileService _fileService;
     private readonly List<string> _inputHistory = [];
     private int _historyIndex = -1;
     private int _inputStartCol;
     private int _inputRow;
     private int _borderWidth;
-    private const string Placeholder = "Type a message, or /help for commands";
+    private const string Placeholder = "Type a message, / for commands, @ for files";
     private const string BorderColor = "dodgerblue2";
 
-    public InputHandler(IEnumerable<SlashCommand> commands)
+    public InputHandler(IEnumerable<SlashCommand> commands, IFileService fileService)
     {
         _commands = commands.OrderBy(c => c.Name).ToList();
+        _fileService = fileService;
     }
 
     public string? ReadInput()
     {
         // Add spacing before input area
         AnsiConsole.WriteLine();
-        
+
         // Ensure we have room in the buffer
-        EnsureBufferSpace(10);
+        EnsureBufferSpace(12);
 
         // Top border
         _borderWidth = Console.WindowWidth - 1;
@@ -42,9 +45,11 @@ public class InputHandler : IInputHandler
         var buffer = new List<char>();
         var cursorPos = 0;
         var selectedSuggestion = -1;
-        var suggestions = new List<SlashCommand>();
+        var suggestions = new List<ISuggestion>();
         var showingSuggestions = false;
         var suggestionLinesRendered = 0;
+        var autocompleteType = AutocompleteType.None;
+        var filePickerPath = ""; // Current directory for file picker
 
         // Show placeholder + bottom border
         RenderLine(buffer, cursorPos);
@@ -74,7 +79,7 @@ public class InputHandler : IInputHandler
                 Console.Write(new string(' ', Console.WindowWidth));
                 Console.SetCursorPosition(0, _inputRow);
                 Console.Write(new string(' ', Console.WindowWidth));
-                
+
                 var result = new string(buffer.ToArray());
                 if (!string.IsNullOrWhiteSpace(result))
                 {
@@ -94,34 +99,28 @@ public class InputHandler : IInputHandler
                     else
                         selectedSuggestion = (selectedSuggestion + 1) % suggestions.Count;
 
-                    var cmd = suggestions[selectedSuggestion].Name;
-                    buffer.Clear();
-                    buffer.AddRange(cmd);
-                    cursorPos = buffer.Count;
+                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType, filePickerPath);
                     RenderLine(buffer, cursorPos);
-                    RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered);
-                    continue;
-                }
 
-                if (buffer.Count > 0 && buffer[0] == '/')
-                {
-                    var prefix = new string(buffer.ToArray());
-                    suggestions = _commands.Where(c =>
-                        c.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
-                    if (suggestions.Count > 0)
+                    // If we selected a directory, update the file picker
+                    if (suggestions[selectedSuggestion].IsDirectory)
                     {
-                        showingSuggestions = true;
-                        selectedSuggestion = 0;
-                        var cmd = suggestions[0].Name;
-                        buffer.Clear();
-                        buffer.AddRange(cmd);
-                        cursorPos = buffer.Count;
-                        RenderLine(buffer, cursorPos);
-                        RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered);
+                        var path = suggestions[selectedSuggestion].InsertText;
+                        filePickerPath = path.TrimEnd('/');
+                        UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
+                    }
+                    else
+                    {
+                        // Close suggestions after selecting a file
+                        ClearSuggestions(suggestionLinesRendered);
+                        suggestionLinesRendered = 0;
+                        showingSuggestions = false;
+                        selectedSuggestion = -1;
+                        autocompleteType = AutocompleteType.None;
+                        RenderBottomBorder();
                     }
                     continue;
                 }
-
                 continue;
             }
 
@@ -134,6 +133,8 @@ public class InputHandler : IInputHandler
                     suggestionLinesRendered = 0;
                     showingSuggestions = false;
                     selectedSuggestion = -1;
+                    autocompleteType = AutocompleteType.None;
+                    filePickerPath = "";
                     RenderBottomBorder();
                     continue;
                 }
@@ -149,12 +150,7 @@ public class InputHandler : IInputHandler
                 if (showingSuggestions && suggestions.Count > 0)
                 {
                     selectedSuggestion = selectedSuggestion <= 0 ? suggestions.Count - 1 : selectedSuggestion - 1;
-                    var cmd = suggestions[selectedSuggestion].Name;
-                    buffer.Clear();
-                    buffer.AddRange(cmd);
-                    cursorPos = buffer.Count;
-                    RenderLine(buffer, cursorPos);
-                    RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered);
+                    RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered, autocompleteType);
                     continue;
                 }
 
@@ -165,6 +161,8 @@ public class InputHandler : IInputHandler
                     buffer.AddRange(_inputHistory[_historyIndex]);
                     cursorPos = buffer.Count;
                     RenderLine(buffer, cursorPos);
+                    ClearSuggestions(suggestionLinesRendered);
+                    showingSuggestions = false;
                 }
                 continue;
             }
@@ -175,12 +173,7 @@ public class InputHandler : IInputHandler
                 if (showingSuggestions && suggestions.Count > 0)
                 {
                     selectedSuggestion = (selectedSuggestion + 1) % suggestions.Count;
-                    var cmd = suggestions[selectedSuggestion].Name;
-                    buffer.Clear();
-                    buffer.AddRange(cmd);
-                    cursorPos = buffer.Count;
-                    RenderLine(buffer, cursorPos);
-                    RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered);
+                    RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered, autocompleteType);
                     continue;
                 }
 
@@ -208,7 +201,7 @@ public class InputHandler : IInputHandler
                 if (cursorPos > 0)
                 {
                     cursorPos--;
-                    Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
+                    SetCursor(cursorPos);
                 }
                 continue;
             }
@@ -217,7 +210,7 @@ public class InputHandler : IInputHandler
                 if (cursorPos < buffer.Count)
                 {
                     cursorPos++;
-                    Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
+                    SetCursor(cursorPos);
                 }
                 continue;
             }
@@ -226,13 +219,13 @@ public class InputHandler : IInputHandler
             if (key.Key == ConsoleKey.Home)
             {
                 cursorPos = 0;
-                Console.SetCursorPosition(_inputStartCol, Math.Min(_inputRow, Console.BufferHeight - 1));
+                Console.SetCursorPosition(_inputStartCol, _inputRow);
                 continue;
             }
             if (key.Key == ConsoleKey.End)
             {
                 cursorPos = buffer.Count;
-                Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
+                SetCursor(cursorPos);
                 continue;
             }
 
@@ -244,7 +237,7 @@ public class InputHandler : IInputHandler
                     buffer.RemoveAt(cursorPos - 1);
                     cursorPos--;
                     RenderLine(buffer, cursorPos);
-                    UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered);
+                    UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref autocompleteType, ref filePickerPath);
                 }
                 continue;
             }
@@ -256,7 +249,7 @@ public class InputHandler : IInputHandler
                 {
                     buffer.RemoveAt(cursorPos);
                     RenderLine(buffer, cursorPos);
-                    UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered);
+                    UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref autocompleteType, ref filePickerPath);
                 }
                 continue;
             }
@@ -271,6 +264,8 @@ public class InputHandler : IInputHandler
                 suggestionLinesRendered = 0;
                 showingSuggestions = false;
                 selectedSuggestion = -1;
+                autocompleteType = AutocompleteType.None;
+                filePickerPath = "";
                 RenderBottomBorder();
                 continue;
             }
@@ -281,60 +276,66 @@ public class InputHandler : IInputHandler
                 buffer.Insert(cursorPos, key.KeyChar);
                 cursorPos++;
                 RenderLine(buffer, cursorPos);
-                UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered);
+                UpdateSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref autocompleteType, ref filePickerPath);
             }
         }
     }
 
-    /// <summary>Redraws the input text (or placeholder when empty) using absolute positioning.</summary>
-    private void RenderLine(List<char> buffer, int cursorPos)
+    private void AcceptSuggestion(List<char> buffer, ISuggestion suggestion, ref int cursorPos, AutocompleteType type, string currentPath)
     {
-        var safeRow = Math.Min(_inputRow, Console.BufferHeight - 1);
-        Console.SetCursorPosition(_inputStartCol, safeRow);
-        // Clear to end of available line space
-        var clearLen = Console.WindowWidth - _inputStartCol - 1;
-        Console.Write(new string(' ', clearLen));
-        Console.SetCursorPosition(_inputStartCol, safeRow);
-
-        if (buffer.Count == 0)
+        // Find the start of the autocomplete trigger
+        int startPos = -1;
+        if (type == AutocompleteType.Command)
         {
-            AnsiConsole.Markup($"[dim grey]{Placeholder}[/]");
-            Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), safeRow);
+            startPos = 0;
         }
-        else
+        else if (type == AutocompleteType.File)
         {
-            Console.Write(new string(buffer.ToArray()));
-            Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), safeRow);
+            // Find the @ symbol
+            for (int i = cursorPos - 1; i >= 0; i--)
+            {
+                if (buffer[i] == '@')
+                {
+                    startPos = i;
+                    break;
+                }
+            }
+        }
+
+        if (startPos >= 0)
+        {
+            // Remove the old text
+            buffer.RemoveRange(startPos, cursorPos - startPos);
+            cursorPos = startPos;
+
+            // Insert the suggestion
+            var textToInsert = type == AutocompleteType.File
+                ? "@" + suggestion.InsertText
+                : suggestion.InsertText;
+
+            buffer.InsertRange(cursorPos, textToInsert);
+            cursorPos += textToInsert.Length;
         }
     }
 
-    private void UpdateSuggestions(List<char> buffer, ref List<SlashCommand> suggestions,
-        ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered)
+    private void UpdateSuggestions(List<char> buffer, ref List<ISuggestion> suggestions,
+        ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered,
+        ref AutocompleteType autocompleteType, ref string filePickerPath)
     {
         var text = new string(buffer.ToArray());
+        var cursor = buffer.Count;
 
+        // Detect autocomplete type based on cursor position
         if (buffer.Count > 0 && buffer[0] == '/')
         {
-            suggestions = _commands.Where(c =>
-                c.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase)).ToList();
-
-            if (suggestions.Count > 0)
-            {
-                showingSuggestions = true;
-                if (selectedSuggestion >= suggestions.Count)
-                    selectedSuggestion = suggestions.Count - 1;
-                if (selectedSuggestion < 0)
-                    selectedSuggestion = -1;
-                RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered);
-            }
-            else
-            {
-                ClearSuggestions(suggestionLinesRendered);
-                suggestionLinesRendered = 0;
-                showingSuggestions = false;
-                selectedSuggestion = -1;
-                RenderBottomBorder();
-            }
+            autocompleteType = AutocompleteType.Command;
+            UpdateCommandSuggestions(text, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered);
+        }
+        else if (IsInFileReference(buffer, cursor, out var atPos, out var currentPath))
+        {
+            autocompleteType = AutocompleteType.File;
+            filePickerPath = currentPath;
+            UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
         }
         else
         {
@@ -346,27 +347,183 @@ public class InputHandler : IInputHandler
             }
             showingSuggestions = false;
             selectedSuggestion = -1;
+            autocompleteType = AutocompleteType.None;
             suggestions.Clear();
         }
     }
 
-    private void RenderSuggestions(List<SlashCommand> suggestions, int selected, ref int previousLines)
+    private bool IsInFileReference(List<char> buffer, int cursor, out int atPos, out string currentPath)
     {
-        // Save cursor position (should be on input row)
-        var savedLeft = Console.CursorLeft;
+        atPos = -1;
+        currentPath = "";
 
-        // Clear previous suggestion lines
+        // Look for @ before cursor
+        for (int i = cursor - 1; i >= 0; i--)
+        {
+            if (buffer[i] == '@')
+            {
+                atPos = i;
+                // Extract path after @
+                if (cursor > i + 1)
+                {
+                    currentPath = new string(buffer.GetRange(i + 1, cursor - i - 1).ToArray());
+                }
+                return true;
+            }
+            // Stop at whitespace - file reference can't span words
+            if (char.IsWhiteSpace(buffer[i]))
+                break;
+        }
+        return false;
+    }
+
+    private void UpdateCommandSuggestions(string text, ref List<ISuggestion> suggestions,
+        ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered)
+    {
+        var matchingCommands = _commands
+            .Where(c => c.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase))
+            .Select(c => (ISuggestion)new CommandSuggestion(c))
+            .ToList();
+
+        if (matchingCommands.Count > 0)
+        {
+            suggestions = matchingCommands;
+            showingSuggestions = true;
+            if (selectedSuggestion >= suggestions.Count)
+                selectedSuggestion = suggestions.Count - 1;
+            RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered, AutocompleteType.Command);
+        }
+        else
+        {
+            ClearSuggestions(suggestionLinesRendered);
+            suggestionLinesRendered = 0;
+            showingSuggestions = false;
+            selectedSuggestion = -1;
+            RenderBottomBorder();
+        }
+    }
+
+    private void UpdateFileSuggestions(List<char> buffer, ref List<ISuggestion> suggestions,
+        ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered, ref string currentPath)
+    {
+        // Parse the current path - could be a directory or partial filename
+        var dir = "";
+        var filter = "";
+
+        if (!string.IsNullOrEmpty(currentPath))
+        {
+            var lastSlash = currentPath.LastIndexOfAny(new[] { '/', '\\' });
+            if (lastSlash >= 0)
+            {
+                dir = currentPath[..lastSlash];
+                filter = currentPath[(lastSlash + 1)..];
+            }
+            else
+            {
+                filter = currentPath;
+            }
+        }
+
+        var items = _fileService.ListDirectory(string.IsNullOrEmpty(dir) ? null : dir, filter);
+        suggestions = items.Select(i => (ISuggestion)new FileSuggestion(i)).ToList();
+
+        if (suggestions.Count > 0)
+        {
+            showingSuggestions = true;
+            if (selectedSuggestion >= suggestions.Count)
+                selectedSuggestion = suggestions.Count - 1;
+            if (selectedSuggestion < 0)
+                selectedSuggestion = 0;
+            RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered, AutocompleteType.File);
+        }
+        else
+        {
+            ClearSuggestions(suggestionLinesRendered);
+            suggestionLinesRendered = 0;
+            showingSuggestions = false;
+            selectedSuggestion = -1;
+            RenderBottomBorder();
+        }
+    }
+
+    private void RenderLine(List<char> buffer, int cursorPos)
+    {
+        var safeRow = Math.Min(_inputRow, Console.BufferHeight - 1);
+        Console.SetCursorPosition(_inputStartCol, safeRow);
+        var clearLen = Console.WindowWidth - _inputStartCol - 1;
+        Console.Write(new string(' ', clearLen));
+        Console.SetCursorPosition(_inputStartCol, safeRow);
+
+        if (buffer.Count == 0)
+        {
+            AnsiConsole.Markup($"[dim grey]{Placeholder}[/]");
+        }
+        else
+        {
+            var text = new string(buffer.ToArray());
+            // Highlight @file references
+            if (text.Contains('@'))
+            {
+                RenderWithFileHighlights(text);
+            }
+            else
+            {
+                Console.Write(text);
+            }
+        }
+        SetCursor(cursorPos);
+    }
+
+    private void RenderWithFileHighlights(string text)
+    {
+        var i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] == '@')
+            {
+                // Find end of file reference
+                var end = i + 1;
+                while (end < text.Length && !char.IsWhiteSpace(text[end]))
+                    end++;
+
+                var fileRef = text[(i + 1)..end];
+                AnsiConsole.Markup($"[bold cyan]@{Markup.Escape(fileRef)}[/]");
+                i = end;
+            }
+            else
+            {
+                Console.Write(text[i]);
+                i++;
+            }
+        }
+    }
+
+    private void SetCursor(int cursorPos)
+    {
+        Console.SetCursorPosition(
+            Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1),
+            Math.Min(_inputRow, Console.BufferHeight - 1));
+    }
+
+    private void RenderSuggestions(List<ISuggestion> suggestions, int selected, ref int previousLines, AutocompleteType type)
+    {
+        var savedLeft = Console.CursorLeft;
         ClearSuggestions(previousLines, restore: false);
 
-        // Compute column widths from actual content
-        var nameW = Math.Max(12, suggestions.Max(c => c.Name.Length));
-        var descW = Math.Max(20, suggestions.Max(c => c.Description.Length));
-        var innerW = 2 + nameW + 1 + descW + 2;
+        var nameW = Math.Max(16, suggestions.Max(s => s.DisplayText.Length));
+        var descW = Math.Max(12, suggestions.Max(s => s.Description.Length));
+        
+        // Content line: │ 📁 name          desc    │
+        // Width breakdown (emoji = 2 cells):
+        // │(1) + space(1) + 📁(2) + space(1) + name(nameW) + space(1) + desc(descW) + space(1) + │(1)
+        // Total = 8 + nameW + descW
+        // Inner width (between │ chars) = 6 + nameW + descW
+        var innerW = 6 + nameW + descW;
 
         var startTop = _inputRow + 1;
+        var maxDisplay = Math.Min(10, suggestions.Count);
 
-        // Ensure enough room — scroll if near bottom
-        var neededLines = suggestions.Count + 2;
+        var neededLines = maxDisplay + 2;
         while (startTop + neededLines >= Console.BufferHeight)
         {
             Console.SetCursorPosition(0, Console.BufferHeight - 1);
@@ -377,37 +534,52 @@ public class InputHandler : IInputHandler
 
         Console.SetCursorPosition(_inputStartCol, startTop);
 
-        // Top border
-        var header = "─ Commands ";
-        AnsiConsole.Markup($"[dim grey]╭{header}{new string('─', innerW - header.Length)}╮[/]");
-
-        for (var i = 0; i < suggestions.Count; i++)
+        // Calculate scroll window
+        var scrollOffset = 0;
+        if (suggestions.Count > maxDisplay)
         {
-            var cmd = suggestions[i];
-            var name = cmd.Name.PadRight(nameW);
-            var desc = Spectre.Console.Markup.Escape(cmd.Description).PadRight(descW);
-            Console.SetCursorPosition(_inputStartCol, startTop + 1 + i);
-
-            if (i == selected)
-                AnsiConsole.Markup($"[dim grey]│[/][on grey23]  [bold white]{name}[/] [dim]{desc}[/]  [/][dim grey]│[/]");
-            else
-                AnsiConsole.Markup($"[dim grey]│[/]  [yellow]{name}[/] [dim]{desc}[/]  [dim grey]│[/]");
+            scrollOffset = Math.Max(0, selected - maxDisplay / 2);
+            scrollOffset = Math.Min(scrollOffset, suggestions.Count - maxDisplay);
         }
 
-        // Bottom border
-        Console.SetCursorPosition(_inputStartCol, startTop + 1 + suggestions.Count);
-        AnsiConsole.Markup($"[dim grey]╰{new string('─', innerW)}╯[/]");
+        // Header: ── Files (1-10/45) ───────────
+        var title = type == AutocompleteType.File ? "Files" : "Commands";
+        var scrollText = suggestions.Count > maxDisplay 
+            ? $" ({scrollOffset + 1}-{Math.Min(scrollOffset + maxDisplay, suggestions.Count)}/{suggestions.Count})" 
+            : "";
+        
+        // ─ + title + scrollText + dashes = innerW
+        var dashCount = Math.Max(1, innerW - title.Length - scrollText.Length - 2); // -2 for "  " padding
+        
+        AnsiConsole.Markup($"[dim grey]  {title}{scrollText} {new string('─', dashCount)}[/]");
 
-        previousLines = neededLines;
+        for (var i = 0; i < maxDisplay; i++)
+        {
+            var idx = scrollOffset + i;
+            if (idx >= suggestions.Count) break;
 
-        // Restore cursor to input row
+            var sug = suggestions[idx];
+            var name = sug.DisplayText.PadRight(nameW);
+            var desc = Markup.Escape(sug.Description).PadRight(descW);
+            Console.SetCursorPosition(_inputStartCol, startTop + 1 + i);
+
+            if (idx == selected)
+                AnsiConsole.Markup($"  [on grey23] [bold white]{name}[/] [dim]{desc}[/][/]");
+            else
+                AnsiConsole.Markup($"  [cyan]{name}[/] [dim]{desc}[/]");
+        }
+
+        // Bottom separator
+        Console.SetCursorPosition(_inputStartCol, startTop + 1 + maxDisplay);
+        AnsiConsole.Markup($"[dim grey]  {new string('─', innerW)}[/]");
+
+        previousLines = maxDisplay + 2;
         Console.SetCursorPosition(savedLeft, _inputRow);
     }
 
     private void ClearSuggestions(int lineCount, bool restore = true)
     {
         if (lineCount == 0) return;
-
         var savedLeft = Console.CursorLeft;
 
         for (var i = 1; i <= lineCount; i++)
@@ -427,7 +599,6 @@ public class InputHandler : IInputHandler
         var savedLeft = Console.CursorLeft;
         var savedTop = Console.CursorTop;
 
-        // Ensure room for border line
         if (_inputRow + 1 >= Console.BufferHeight)
         {
             Console.SetCursorPosition(0, Console.BufferHeight - 1);
@@ -443,25 +614,23 @@ public class InputHandler : IInputHandler
         Console.SetCursorPosition(savedLeft, Math.Min(savedTop, Console.BufferHeight - 1));
     }
 
-    /// <summary>
-    /// Ensures there's enough buffer space by scrolling if needed.
-    /// </summary>
     private static void EnsureBufferSpace(int linesNeeded)
     {
         try
         {
             if (Console.CursorTop + linesNeeded >= Console.BufferHeight)
             {
-                // Scroll by writing empty lines
                 for (var i = 0; i < linesNeeded; i++)
-                {
                     Console.WriteLine();
-                }
             }
         }
-        catch (IOException)
-        {
-            // Ignore when console handle is invalid (e.g., piping)
-        }
+        catch (IOException) { }
+    }
+
+    private enum AutocompleteType
+    {
+        None,
+        Command,
+        File
     }
 }
