@@ -18,20 +18,35 @@ options.AvailableModels = section.GetSection("AvailableModels").Get<string[]>() 
 options.InputCostPer1K = section.GetValue("InputCostPer1K", options.InputCostPer1K);
 options.OutputCostPer1K = section.GetValue("OutputCostPer1K", options.OutputCostPer1K);
 options.TokenEstimationMultiplier = section.GetValue("TokenEstimationMultiplier", options.TokenEstimationMultiplier);
+options.Provider = section["Provider"] ?? options.Provider;
+options.DashScopeApiKey = section["DashScopeApiKey"];
+options.DashScopeBaseUrl = section["DashScopeBaseUrl"] ?? options.DashScopeBaseUrl;
+options.SystemPrompt = section["SystemPrompt"] ?? options.SystemPrompt;
 
 // Build service provider
-using var serviceProvider = new ServiceCollection()
-    .AddSingleton(options)
-    .AddSingleton<IAIProvider, MockAIProvider>()
-    .AddSingleton<ICommandHandler, CommandHandler>()
-    .AddSingleton<IChatRenderer, ChatRenderer>()
-    .AddSingleton<IInputHandler>(sp =>
-    {
-        var commandHandler = sp.GetRequiredService<ICommandHandler>();
-        return new InputHandler(commandHandler.Commands);
-    })
-    .AddSingleton<IChatService, ChatService>()
-    .BuildServiceProvider();
+var services = new ServiceCollection();
+services.AddSingleton(options);
+
+// Choose AI provider based on configuration
+if (options.Provider.Equals("dashscope", StringComparison.OrdinalIgnoreCase))
+{
+    services.AddSingleton<IAIProvider, DashScopeProvider>();
+}
+else
+{
+    services.AddSingleton<IAIProvider, MockAIProvider>();
+}
+
+services.AddSingleton<ICommandHandler, CommandHandler>();
+services.AddSingleton<IChatRenderer, ChatRenderer>();
+services.AddSingleton<IInputHandler>(sp =>
+{
+    var commandHandler = sp.GetRequiredService<ICommandHandler>();
+    return new InputHandler(commandHandler.Commands);
+});
+services.AddSingleton<IChatService, ChatService>();
+
+using var serviceProvider = services.BuildServiceProvider();
 
 // Run the application
 var chatService = serviceProvider.GetRequiredService<IChatService>();

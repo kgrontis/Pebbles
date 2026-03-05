@@ -24,6 +24,12 @@ public class InputHandler : IInputHandler
 
     public string? ReadInput()
     {
+        // Add spacing before input area
+        AnsiConsole.WriteLine();
+        
+        // Ensure we have room in the buffer
+        EnsureBufferSpace(10);
+
         // Top border
         _borderWidth = Console.WindowWidth - 1;
         AnsiConsole.MarkupLine($"[{BorderColor}]{new string('─', _borderWidth)}[/]");
@@ -52,8 +58,9 @@ public class InputHandler : IInputHandler
             if (key is { Key: ConsoleKey.C, Modifiers: ConsoleModifiers.Control })
             {
                 ClearSuggestions(suggestionLinesRendered);
-                RenderBottomBorder();
-                Console.SetCursorPosition(0, _inputRow + 2);
+                Console.SetCursorPosition(0, _inputRow);
+                Console.Write(new string(' ', Console.WindowWidth));
+                AnsiConsole.WriteLine();
                 AnsiConsole.MarkupLine("[dim]Goodbye! 👋[/]");
                 Environment.Exit(0);
             }
@@ -62,8 +69,12 @@ public class InputHandler : IInputHandler
             if (key.Key == ConsoleKey.Enter)
             {
                 ClearSuggestions(suggestionLinesRendered);
-                RenderBottomBorder();
-                Console.SetCursorPosition(0, _inputRow + 2);
+                // Clear the input area
+                Console.SetCursorPosition(0, _inputRow - 1);
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, _inputRow);
+                Console.Write(new string(' ', Console.WindowWidth));
+                
                 var result = new string(buffer.ToArray());
                 if (!string.IsNullOrWhiteSpace(result))
                 {
@@ -197,7 +208,7 @@ public class InputHandler : IInputHandler
                 if (cursorPos > 0)
                 {
                     cursorPos--;
-                    Console.SetCursorPosition(_inputStartCol + cursorPos, _inputRow);
+                    Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
                 }
                 continue;
             }
@@ -206,7 +217,7 @@ public class InputHandler : IInputHandler
                 if (cursorPos < buffer.Count)
                 {
                     cursorPos++;
-                    Console.SetCursorPosition(_inputStartCol + cursorPos, _inputRow);
+                    Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
                 }
                 continue;
             }
@@ -215,13 +226,13 @@ public class InputHandler : IInputHandler
             if (key.Key == ConsoleKey.Home)
             {
                 cursorPos = 0;
-                Console.SetCursorPosition(_inputStartCol, _inputRow);
+                Console.SetCursorPosition(_inputStartCol, Math.Min(_inputRow, Console.BufferHeight - 1));
                 continue;
             }
             if (key.Key == ConsoleKey.End)
             {
                 cursorPos = buffer.Count;
-                Console.SetCursorPosition(_inputStartCol + cursorPos, _inputRow);
+                Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), Math.Min(_inputRow, Console.BufferHeight - 1));
                 continue;
             }
 
@@ -278,21 +289,22 @@ public class InputHandler : IInputHandler
     /// <summary>Redraws the input text (or placeholder when empty) using absolute positioning.</summary>
     private void RenderLine(List<char> buffer, int cursorPos)
     {
-        Console.SetCursorPosition(_inputStartCol, _inputRow);
+        var safeRow = Math.Min(_inputRow, Console.BufferHeight - 1);
+        Console.SetCursorPosition(_inputStartCol, safeRow);
         // Clear to end of available line space
         var clearLen = Console.WindowWidth - _inputStartCol - 1;
         Console.Write(new string(' ', clearLen));
-        Console.SetCursorPosition(_inputStartCol, _inputRow);
+        Console.SetCursorPosition(_inputStartCol, safeRow);
 
         if (buffer.Count == 0)
         {
             AnsiConsole.Markup($"[dim grey]{Placeholder}[/]");
-            Console.SetCursorPosition(_inputStartCol, _inputRow);
+            Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), safeRow);
         }
         else
         {
             Console.Write(new string(buffer.ToArray()));
-            Console.SetCursorPosition(_inputStartCol + cursorPos, _inputRow);
+            Console.SetCursorPosition(Math.Min(_inputStartCol + cursorPos, Console.WindowWidth - 1), safeRow);
         }
     }
 
@@ -407,7 +419,7 @@ public class InputHandler : IInputHandler
         }
 
         if (restore)
-            Console.SetCursorPosition(savedLeft, _inputRow);
+            Console.SetCursorPosition(savedLeft, Math.Min(_inputRow, Console.BufferHeight - 1));
     }
 
     private void RenderBottomBorder()
@@ -420,14 +432,36 @@ public class InputHandler : IInputHandler
         {
             Console.SetCursorPosition(0, Console.BufferHeight - 1);
             Console.WriteLine();
-            _inputRow--;
+            _inputRow = Math.Max(0, _inputRow - 1);
             savedTop--;
         }
 
-        Console.SetCursorPosition(0, _inputRow + 1);
+        Console.SetCursorPosition(0, Math.Min(_inputRow + 1, Console.BufferHeight - 1));
         Console.Write(new string(' ', Console.WindowWidth - 1));
-        Console.SetCursorPosition(0, _inputRow + 1);
+        Console.SetCursorPosition(0, Math.Min(_inputRow + 1, Console.BufferHeight - 1));
         AnsiConsole.Markup($"[{BorderColor}]{new string('─', _borderWidth)}[/]");
-        Console.SetCursorPosition(savedLeft, savedTop);
+        Console.SetCursorPosition(savedLeft, Math.Min(savedTop, Console.BufferHeight - 1));
+    }
+
+    /// <summary>
+    /// Ensures there's enough buffer space by scrolling if needed.
+    /// </summary>
+    private static void EnsureBufferSpace(int linesNeeded)
+    {
+        try
+        {
+            if (Console.CursorTop + linesNeeded >= Console.BufferHeight)
+            {
+                // Scroll by writing empty lines
+                for (var i = 0; i < linesNeeded; i++)
+                {
+                    Console.WriteLine();
+                }
+            }
+        }
+        catch (IOException)
+        {
+            // Ignore when console handle is invalid (e.g., piping)
+        }
     }
 }

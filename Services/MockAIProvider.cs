@@ -8,6 +8,7 @@ using Pebbles.Models;
 public class MockAIProvider : IAIProvider
 {
     private static readonly Random _rng = new();
+    private readonly List<ChatMessage> _conversationHistory = [];
 
     private static readonly List<MockResponse> _responses =
     [
@@ -338,6 +339,26 @@ public class MockAIProvider : IAIProvider
         var lower = userInput.ToLowerInvariant();
         return _responses.FirstOrDefault(r =>
             r.Keywords.Any(k => lower.Contains(k))) ?? _defaultResponse;
+    }
+
+    public async IAsyncEnumerable<string> StreamResponseAsync(string userInput, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Mock doesn't actually stream from API, just simulates it
+        var response = GetResponse(userInput);
+        await foreach (var chunk in StreamContentAsync(response))
+        {
+            yield return chunk;
+        }
+    }
+
+    public void AddToHistory(ChatMessage message)
+    {
+        _conversationHistory.Add(message);
+    }
+
+    public void ClearHistory()
+    {
+        _conversationHistory.Clear();
     }
 
     public async IAsyncEnumerable<string> StreamThinkingAsync(MockResponse response)

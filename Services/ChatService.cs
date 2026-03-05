@@ -61,31 +61,24 @@ public class ChatService : IChatService
             var inputTokens = EstimateTokens(input);
             var userMsg = ChatMessage.User(input, inputTokens);
             session.Messages.Add(userMsg);
+            _aiProvider.AddToHistory(userMsg);
             _renderer.RenderUserMessage(input);
 
-            // Get AI response
-            var response = _aiProvider.GetResponse(input);
-
-            // Render thinking (unless compact mode)
-            if (!session.CompactMode)
-            {
-                await _renderer.RenderThinkingAsync(_aiProvider, response);
-            }
-
-            // Stream assistant response
-            await _renderer.RenderAssistantStreamAsync(_aiProvider, response);
+            // Stream assistant response directly from API
+            var (content, thinking, thinkingDuration, outputTokens) = 
+                await _renderer.RenderAssistantLiveStreamAsync(_aiProvider, input, session.CompactMode);
 
             // Record assistant message
-            var outputTokens = EstimateTokens(response.Content) + EstimateTokens(response.Thinking);
             var assistantMsg = ChatMessage.Assistant(
-                response.Content,
+                content,
                 outputTokens,
                 new ThinkingBlock
                 {
-                    Content = response.Thinking,
-                    Duration = response.ThinkingDuration
+                    Content = thinking,
+                    Duration = thinkingDuration
                 });
             session.Messages.Add(assistantMsg);
+            _aiProvider.AddToHistory(assistantMsg);
 
             // Update session totals and show token info
             session.TotalInputTokens += inputTokens;

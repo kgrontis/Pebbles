@@ -8,9 +8,14 @@ using Pebbles.Models;
 public interface IAIProvider
 {
     /// <summary>
-    /// Gets a response for the given user input.
+    /// Gets a response for the given user input (non-streaming).
     /// </summary>
     MockResponse GetResponse(string userInput);
+
+    /// <summary>
+    /// Gets a streaming response for the given user input.
+    /// </summary>
+    IAsyncEnumerable<string> StreamResponseAsync(string userInput, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Streams thinking content word by word.
@@ -21,4 +26,14 @@ public interface IAIProvider
     /// Streams response content character by character.
     /// </summary>
     IAsyncEnumerable<string> StreamContentAsync(MockResponse response);
+
+    /// <summary>
+    /// Adds a message to the conversation history.
+    /// </summary>
+    void AddToHistory(ChatMessage message);
+
+    /// <summary>
+    /// Clears the conversation history.
+    /// </summary>
+    void ClearHistory();
 }

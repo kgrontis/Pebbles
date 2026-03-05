@@ -24,9 +24,16 @@ public interface IChatRenderer
     Task RenderThinkingAsync(IAIProvider provider, MockResponse response);
 
     /// <summary>
-    /// Renders an assistant response with streaming.
+    /// Renders an assistant response with streaming (mock mode).
     /// </summary>
     Task RenderAssistantStreamAsync(IAIProvider provider, MockResponse response);
+
+    /// <summary>
+    /// Renders an assistant response with live API streaming.
+    /// Returns (content, thinking, thinkingDuration, outputTokens).
+    /// </summary>
+    Task<(string Content, string Thinking, TimeSpan ThinkingDuration, int OutputTokens)> 
+        RenderAssistantLiveStreamAsync(IAIProvider provider, string userInput, bool compactMode);
 
     /// <summary>
     /// Renders the result of a slash command.
