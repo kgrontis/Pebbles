@@ -9,6 +9,12 @@ public class MockAIProvider : IAIProvider
 {
     private static readonly Random _rng = new();
     private readonly List<ChatMessage> _conversationHistory = [];
+    private readonly ContextManager _contextManager;
+
+    public MockAIProvider(ContextManager contextManager)
+    {
+        _contextManager = contextManager;
+    }
 
     private static readonly List<MockResponse> _responses =
     [

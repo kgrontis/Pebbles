@@ -15,15 +15,17 @@ public class DashScopeProvider : IAIProvider
 {
     private readonly HttpClient _httpClient;
     private readonly PebblesOptions _options;
+    private readonly ContextManager _contextManager;
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
     private TimeSpan _thinkingDuration = TimeSpan.Zero;
     private int _lastInputTokens = 0;
     private int _lastOutputTokens = 0;
 
-    public DashScopeProvider(PebblesOptions options)
+    public DashScopeProvider(PebblesOptions options, ContextManager contextManager)
     {
         _options = options;
+        _contextManager = contextManager;
         _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(120)
@@ -157,9 +159,15 @@ public class DashScopeProvider : IAIProvider
 
     private List<ChatMessageItem> BuildMessages()
     {
+        // Build enhanced system prompt with context
+        var context = _contextManager.GetContextForPrompt();
+        var systemPrompt = string.IsNullOrEmpty(context)
+            ? _options.SystemPrompt
+            : $"{_options.SystemPrompt}\n\n{context}";
+
         var messages = new List<ChatMessageItem>
         {
-            new() { Role = "system", Content = _options.SystemPrompt }
+            new() { Role = "system", Content = systemPrompt }
         };
 
         foreach (var msg in _conversationHistory)

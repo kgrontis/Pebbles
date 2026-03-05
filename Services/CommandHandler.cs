@@ -1,5 +1,6 @@
 namespace Pebbles.Services;
 
+using Spectre.Console;
 using Pebbles.Models;
 using Pebbles.Configuration;
 
@@ -10,10 +11,12 @@ public class CommandHandler : ICommandHandler
 {
     private readonly Dictionary<string, SlashCommand> _commands;
     private readonly PebblesOptions _options;
+    private readonly ContextManager _contextManager;
 
-    public CommandHandler(PebblesOptions options)
+    public CommandHandler(PebblesOptions options, ContextManager contextManager)
     {
         _options = options;
+        _contextManager = contextManager;
         _commands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase)
         {
             ["/help"] = new SlashCommand
@@ -57,6 +60,13 @@ public class CommandHandler : ICommandHandler
                 Description = "Show token usage and estimated cost",
                 Usage = "/cost",
                 Handler = HandleCost
+            },
+            ["/context"] = new SlashCommand
+            {
+                Name = "/context",
+                Description = "Show loaded project context",
+                Usage = "/context",
+                Handler = HandleContext
             },
             ["/exit"] = new SlashCommand
             {
@@ -159,6 +169,43 @@ public class CommandHandler : ICommandHandler
               Total tokens:  {session.TotalInputTokens + session.TotalOutputTokens:N0}
               Est. cost:     ${session.TotalCost:F4}
             """));
+    }
+
+    private Task<CommandResult> HandleContext(string[] args, ChatSession session)
+    {
+        var (global, project) = _contextManager.CheckContextFiles();
+        var lines = new List<string> { "" };
+
+        if (project)
+        {
+            lines.Add($"[bold green]✓[/] Project context: [dim].pebbles/agent/AGENTS.md[/]");
+            var context = _contextManager.GetProjectContext();
+            if (!string.IsNullOrEmpty(context))
+            {
+                var preview = context.Length > 500 ? context[..500] + "..." : context;
+                lines.Add($"[dim]{Markup.Escape(preview)}[/]");
+            }
+        }
+        else
+        {
+            lines.Add($"[bold red]✗[/] Project context: [dim]Not found (.pebbles/agent/AGENTS.md)[/]");
+        }
+
+        lines.Add("");
+
+        if (global)
+        {
+            lines.Add($"[bold green]✓[/] Global context: [dim]~/.pebbles/agent/AGENTS.md[/]");
+        }
+        else
+        {
+            lines.Add($"[bold red]✗[/] Global context: [dim]Not found (~/.pebbles/agent/AGENTS.md)[/]");
+        }
+
+        lines.Add("");
+        lines.Add("[dim]Context is automatically included in AI prompts.[/]");
+
+        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleExit(string[] args, ChatSession session)
