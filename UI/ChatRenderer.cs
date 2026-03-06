@@ -14,23 +14,24 @@ public class ChatRenderer : IChatRenderer
     {
         AnsiConsole.Clear();
 
-        var banner = new FigletText(FigletFontLoader.Slant, "Pebbles")
-            .Color(Color.MediumPurple1);
-        AnsiConsole.Write(banner);
+        // Calculate available width (leave margin for borders)
+        var maxWidth = Math.Min(Console.WindowWidth - 4, 80);
 
-        var panel = new Panel(
-            new Markup(
-                "[dim]Your AI coding assistant in the terminal[/]\n" +
-                $"[dim]Model:[/] [bold mediumspringgreen]{session.Model}[/]  " +
-                $"[dim]Session:[/] [bold]{session.Id}[/]\n\n" +
-                "[dim]Type a message to chat, or[/] [bold yellow]/help[/] [dim]for commands.[/]\n" +
-                "[dim]Press[/] [bold yellow]Ctrl+C[/] [dim]or type[/] [bold yellow]/exit[/] [dim]to quit.[/]"))
-        {
-            Border = BoxBorder.Rounded,
-            Padding = new Padding(2, 1),
-            BorderStyle = new Style(Color.Grey)
-        };
-        AnsiConsole.Write(panel);
+        // Compact banner that fits on smaller screens
+        AnsiConsole.MarkupLine($"[bold mediumspringgreen]⬡ Pebbles[/] [dim]— AI coding assistant[/]");
+        AnsiConsole.WriteLine();
+
+        // Status line
+        AnsiConsole.MarkupLine($"  [dim]Model:[/] [bold mediumspringgreen]{session.Model}[/]  [dim]Session:[/] [bold]{session.Id}[/]");
+        AnsiConsole.WriteLine();
+
+        // Help hints
+        AnsiConsole.MarkupLine($"  [dim]Type a message to chat, or[/] [bold yellow]/help[/] [dim]for commands.[/]");
+        AnsiConsole.MarkupLine($"  [dim]Press[/] [bold yellow]Ctrl+C[/] [dim]or type[/] [bold yellow]/exit[/] [dim]to quit.[/]");
+
+        // Bottom border
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"  [dim grey]{new string('─', Math.Max(0, maxWidth - 4))}[/]");
         AnsiConsole.WriteLine();
     }
 

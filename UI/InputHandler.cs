@@ -27,19 +27,19 @@ public class InputHandler : IInputHandler
 
     public string? ReadInput(ChatSession session)
     {
-        // Ensure we have room in the buffer
-        EnsureBufferSpace(14);
+        // Ensure we have room in the buffer for input area
+        EnsureBufferSpace(6);
 
-        // Status bar (model, session, tokens)
+        // Status bar (model, tokens) - compact single line
         var totalTokens = session.TotalInputTokens + session.TotalOutputTokens;
-        AnsiConsole.MarkupLine($"  [bold mediumspringgreen]{session.Model}[/] [dim]•[/] [dim]Session[/] [bold]{session.Id}[/] [dim]•[/] [dim]{session.Messages.Count} msgs • {totalTokens:N0} tokens[/]");
-        
+        AnsiConsole.MarkupLine($"  [bold mediumspringgreen]{session.Model}[/] [dim]•[/] [dim]{session.Messages.Count} msgs • {totalTokens:N0} tokens[/]");
+
         // Top border
-        _borderWidth = Console.WindowWidth - 1;
-        AnsiConsole.MarkupLine($"[{BorderColor}]{new string('─', _borderWidth)}[/]");
+        _borderWidth = Math.Max(1, Console.WindowWidth - 4);
+        AnsiConsole.MarkupLine($"  [{BorderColor}]{new string('─', _borderWidth)}[/]");
 
         // Prompt
-        AnsiConsole.Markup("[bold dodgerblue2]❯[/] ");
+        AnsiConsole.Markup("  [bold dodgerblue2]❯[/] ");
         _inputStartCol = Console.CursorLeft;
         _inputRow = Console.CursorTop;
 
@@ -534,7 +534,7 @@ public class InputHandler : IInputHandler
 
         var nameW = Math.Max(16, suggestions.Max(s => s.DisplayText.Length));
         var descW = Math.Max(12, suggestions.Max(s => s.Description.Length));
-        
+
         // Content line: │ 📁 name          desc    │
         // Width breakdown (emoji = 2 cells):
         // │(1) + space(1) + 📁(2) + space(1) + name(nameW) + space(1) + desc(descW) + space(1) + │(1)
@@ -566,13 +566,13 @@ public class InputHandler : IInputHandler
 
         // Header: ── Files (1-10/45) ───────────
         var title = type == AutocompleteType.File ? "Files" : "Commands";
-        var scrollText = suggestions.Count > maxDisplay 
-            ? $" ({scrollOffset + 1}-{Math.Min(scrollOffset + maxDisplay, suggestions.Count)}/{suggestions.Count})" 
+        var scrollText = suggestions.Count > maxDisplay
+            ? $" ({scrollOffset + 1}-{Math.Min(scrollOffset + maxDisplay, suggestions.Count)}/{suggestions.Count})"
             : "";
-        
+
         // ─ + title + scrollText + dashes = innerW
         var dashCount = Math.Max(1, innerW - title.Length - scrollText.Length - 2); // -2 for "  " padding
-        
+
         AnsiConsole.Markup($"[dim grey]  {title}{scrollText} {new string('─', dashCount)}[/]");
 
         for (var i = 0; i < maxDisplay; i++)
@@ -632,7 +632,7 @@ public class InputHandler : IInputHandler
         Console.SetCursorPosition(0, Math.Min(_inputRow + 1, Console.BufferHeight - 1));
         Console.Write(new string(' ', Console.WindowWidth - 1));
         Console.SetCursorPosition(0, Math.Min(_inputRow + 1, Console.BufferHeight - 1));
-        AnsiConsole.Markup($"[{BorderColor}]{new string('─', _borderWidth)}[/]");
+        AnsiConsole.Markup($"  [{BorderColor}]{new string('─', _borderWidth)}[/]");
         Console.SetCursorPosition(savedLeft, Math.Min(savedTop, Console.BufferHeight - 1));
     }
 
