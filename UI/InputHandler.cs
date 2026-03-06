@@ -71,9 +71,36 @@ public class InputHandler : IInputHandler
                 Environment.Exit(0);
             }
 
-            // Enter — submit
+            // Enter — accept suggestion or submit
             if (key.Key == ConsoleKey.Enter)
             {
+                // If suggestions are showing, accept the selected one
+                if (showingSuggestions && suggestions.Count > 0 && selectedSuggestion >= 0)
+                {
+                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType, filePickerPath);
+                    RenderLine(buffer, cursorPos);
+
+                    // If we selected a directory, update the file picker
+                    if (suggestions[selectedSuggestion].IsDirectory)
+                    {
+                        var path = suggestions[selectedSuggestion].InsertText;
+                        filePickerPath = path.TrimEnd('/');
+                        UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
+                    }
+                    else
+                    {
+                        // Close suggestions after selecting
+                        ClearSuggestions(suggestionLinesRendered);
+                        suggestionLinesRendered = 0;
+                        showingSuggestions = false;
+                        selectedSuggestion = -1;
+                        autocompleteType = AutocompleteType.None;
+                        RenderBottomBorder();
+                    }
+                    continue;
+                }
+
+                // No suggestions showing - submit input
                 ClearSuggestions(suggestionLinesRendered);
                 // Clear the input area
                 Console.SetCursorPosition(0, _inputRow - 1);
