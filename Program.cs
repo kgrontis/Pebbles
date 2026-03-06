@@ -10,7 +10,7 @@ var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: false)
     .Build();
 
-// Configure options (AOT-friendly manual binding)
+// Configure options
 var options = new PebblesOptions();
 var section = configuration.GetSection(PebblesOptions.SectionName);
 options.DefaultModel = section["DefaultModel"] ?? options.DefaultModel;

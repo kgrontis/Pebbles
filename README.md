@@ -5,7 +5,6 @@ A terminal-based AI coding assistant built with .NET 10 and Spectre.Console.
 Your AI coding assistant in the terminal — fast, focused, and extensible.
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
-![AOT](https://img.shields.io/badge/Native_AOT-Enabled-green)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ## Features
@@ -109,15 +108,6 @@ Pebbles automatically includes these guidelines in every AI conversation. Suppor
 - **Project context:** `.pebbles/agent/AGENTS.md` (current directory)
 - **Global context:** `~/.pebbles/agent/AGENTS.md` (user profile)
 
-### ⚡ Native AOT
-
-Compiled to native code for:
-
-- Fast startup time
-- Self-contained executable (no runtime required)
-- Minimal memory footprint
-- Optimized for speed with `OptimizationPreference=Speed`
-
 ### 📊 Token Tracking
 
 Real-time token usage and cost estimation:
@@ -145,10 +135,6 @@ cd pebbles
 
 # Build and run
 dotnet run
-
-# Or publish as native AOT
-dotnet publish -c Release -r win-x64
-./bin/Release/net10.0/win-x64/publish/Pebbles.exe
 ```
 
 ### Configuration

@@ -5,11 +5,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    
-    <!-- Native AOT -->
-    <PublishAot>true</PublishAot>
-    <OptimizationPreference>Speed</OptimizationPreference>
-    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
