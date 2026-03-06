@@ -127,6 +127,7 @@ public class CommandHandler : ICommandHandler
         };
 
         // Load extension commands on startup
+        _extensionLoader.LoadExtensions();
         RefreshExtensionCommands();
     }
 
@@ -205,7 +206,7 @@ public class CommandHandler : ICommandHandler
 
         lines.Add("");
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleClear(string[] args, ChatSession session)
@@ -262,7 +263,7 @@ public class CommandHandler : ICommandHandler
             lines.Add($"  [{msg.Timestamp:HH:mm:ss}] {role}: {preview}");
         }
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleCost(string[] args, ChatSession session)
@@ -310,7 +311,7 @@ public class CommandHandler : ICommandHandler
         lines.Add("");
         lines.Add("[dim]Context is automatically included in AI prompts.[/]");
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleRead(string[] args, ChatSession session)
@@ -339,7 +340,7 @@ public class CommandHandler : ICommandHandler
             ""
         };
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleFiles(string[] args, ChatSession session)
@@ -348,7 +349,7 @@ public class CommandHandler : ICommandHandler
 
         if (files.Count == 0)
         {
-            return Task.FromResult(CommandResult.Ok("\n[dim]No files loaded. Use /read <path> or @file.cs syntax to load files.[/]\n"));
+            return Task.FromResult(CommandResult.OkWithMarkup("\n[dim]No files loaded. Use /read <path> or @file.cs syntax to load files.[/]\n"));
         }
 
         var lines = new List<string>
@@ -369,7 +370,7 @@ public class CommandHandler : ICommandHandler
         lines.Add("[dim]Files are included in AI context automatically.[/]");
         lines.Add("[dim]Use /clearfiles to remove all files from context.[/]");
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleClearFiles(string[] args, ChatSession session)
@@ -377,7 +378,7 @@ public class CommandHandler : ICommandHandler
         var count = _fileService.LoadedFiles.Count;
         _fileService.ClearFiles();
 
-        return Task.FromResult(CommandResult.Ok($"\n[dim]Cleared {count} file(s) from context.[/]\n"));
+        return Task.FromResult(CommandResult.OkWithMarkup($"\n[dim]Cleared {count} file(s) from context.[/]\n"));
     }
 
     private Task<CommandResult> HandleReload(string[] args, ChatSession session)
@@ -417,7 +418,7 @@ public class CommandHandler : ICommandHandler
 
         lines.Add("");
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleExtensions(string[] args, ChatSession session)
@@ -427,7 +428,7 @@ public class CommandHandler : ICommandHandler
         if (extensions.Count == 0)
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Task.FromResult(CommandResult.Ok($"""
+            return Task.FromResult(CommandResult.OkWithMarkup($"""
 
                 [dim]No extensions loaded.[/]
 
@@ -462,7 +463,7 @@ public class CommandHandler : ICommandHandler
 
         lines.Add("[dim]Use /reload to reload extensions.[/]");
 
-        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private static string FormatSize(long bytes) =>

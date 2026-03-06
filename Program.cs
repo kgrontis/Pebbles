@@ -55,7 +55,7 @@ services.AddSingleton<IInputHandler>(sp =>
 {
     var cmdHandler = sp.GetRequiredService<ICommandHandler>();
     var fileSvc = sp.GetRequiredService<IFileService>();
-    return new InputHandler(cmdHandler.Commands, fileSvc);
+    return new InputHandler(cmdHandler, fileSvc);
 });
 services.AddSingleton<IChatService, ChatService>();
 

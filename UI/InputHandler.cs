@@ -9,7 +9,7 @@ using Pebbles.Services;
 /// </summary>
 public class InputHandler : IInputHandler
 {
-    private readonly List<SlashCommand> _commands;
+    private readonly ICommandHandler _commandHandler;
     private readonly IFileService _fileService;
     private readonly List<string> _inputHistory = [];
     private int _historyIndex = -1;
@@ -19,9 +19,9 @@ public class InputHandler : IInputHandler
     private const string Placeholder = "Type a message, / for commands, @ for files";
     private const string BorderColor = "dodgerblue2";
 
-    public InputHandler(IEnumerable<SlashCommand> commands, IFileService fileService)
+    public InputHandler(ICommandHandler commandHandler, IFileService fileService)
     {
-        _commands = commands.OrderBy(c => c.Name).ToList();
+        _commandHandler = commandHandler;
         _fileService = fileService;
     }
 
@@ -90,16 +90,11 @@ public class InputHandler : IInputHandler
                 return result;
             }
 
-            // Tab — accept suggestion or cycle
+            // Tab — accept suggestion
             if (key.Key == ConsoleKey.Tab)
             {
-                if (showingSuggestions && suggestions.Count > 0)
+                if (showingSuggestions && suggestions.Count > 0 && selectedSuggestion >= 0)
                 {
-                    if (key.Modifiers.HasFlag(ConsoleModifiers.Shift))
-                        selectedSuggestion = selectedSuggestion <= 0 ? suggestions.Count - 1 : selectedSuggestion - 1;
-                    else
-                        selectedSuggestion = (selectedSuggestion + 1) % suggestions.Count;
-
                     AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType, filePickerPath);
                     RenderLine(buffer, cursorPos);
 
@@ -112,7 +107,7 @@ public class InputHandler : IInputHandler
                     }
                     else
                     {
-                        // Close suggestions after selecting a file
+                        // Close suggestions after selecting
                         ClearSuggestions(suggestionLinesRendered);
                         suggestionLinesRendered = 0;
                         showingSuggestions = false;
@@ -381,7 +376,7 @@ public class InputHandler : IInputHandler
     private void UpdateCommandSuggestions(string text, ref List<ISuggestion> suggestions,
         ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered)
     {
-        var matchingCommands = _commands
+        var matchingCommands = _commandHandler.Commands
             .Where(c => c.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase))
             .Select(c => (ISuggestion)new CommandSuggestion(c))
             .ToList();
@@ -390,8 +385,7 @@ public class InputHandler : IInputHandler
         {
             suggestions = matchingCommands;
             showingSuggestions = true;
-            if (selectedSuggestion >= suggestions.Count)
-                selectedSuggestion = suggestions.Count - 1;
+            selectedSuggestion = 0; // Start with first item selected
             RenderSuggestions(suggestions, selectedSuggestion, ref suggestionLinesRendered, AutocompleteType.Command);
         }
         else

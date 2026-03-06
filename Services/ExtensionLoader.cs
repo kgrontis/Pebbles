@@ -203,7 +203,9 @@ public sealed class ExtensionLoader : IExtensionLoader
                     _ => result.ToString()
                 };
 
-                return Task.FromResult(CommandResult.Ok(output));
+                // Return raw output so it appears on its own line without the ● prefix
+                // Allow markup so extensions can use Spectre formatting
+                return Task.FromResult(CommandResult.Raw(output, allowMarkup: true));
             }
             catch (InterpreterException ex)
             {

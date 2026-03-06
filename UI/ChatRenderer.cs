@@ -199,11 +199,22 @@ public class ChatRenderer : IChatRenderer
         if (result.ShouldClear) { AnsiConsole.Clear(); RenderWelcome(session); return; }
         if (result.Message is not null)
         {
-            var color = result.Success ? "dim" : "red";
-            var icon = result.Success ? "●" : "✖";
-            AnsiConsole.MarkupLine($"[{color}]{icon} {Markup.Escape(result.Message)}[/]");
+            if (result.RawOutput)
+            {
+                // Raw output - no prefix, just the message on its own line
+                AnsiConsole.Markup(result.Message + "\n");
+            }
+            else
+            {
+                // Standard output with status indicator
+                var color = result.Success ? "dim" : "red";
+                var icon = result.Success ? "●" : "✖";
+                if (result.AllowMarkup)
+                    AnsiConsole.MarkupLine($"[{color}]{icon}[/] {result.Message}");
+                else
+                    AnsiConsole.MarkupLine($"[{color}]{icon} {Markup.Escape(result.Message)}[/]");
+            }
         }
-        AnsiConsole.WriteLine();
     }
 
     public void RenderStatusBar(ChatSession session)
