@@ -1,41 +1,29 @@
-namespace Pebbles.Services;
-
-using System.Diagnostics;
-using MoonSharp.Interpreter;
+namespace Pebbles.Plugins;
 
 /// <summary>
-/// Manages the Lua runtime and provides global functions for plugins.
+/// Base class for C# plugins. Inherit from this class to create a plugin.
 /// </summary>
-public sealed class LuaPluginService
+public abstract class PluginBase
 {
-    private readonly string _workingDirectory;
-
-    public LuaPluginService()
-    {
-        _workingDirectory = Directory.GetCurrentDirectory();
-    }
+    /// <summary>
+    /// Plugin identifier (e.g., "my-tools").
+    /// </summary>
+    public abstract string Name { get; }
 
     /// <summary>
-    /// Creates a new MoonSharp script instance with global functions registered.
+    /// Plugin version (e.g., "1.0.0").
     /// </summary>
-    public Script CreateScript()
-    {
-        var script = new Script(CoreModules.Basic | CoreModules.String | CoreModules.Table | CoreModules.Math);
+    public virtual string Version => "1.0.0";
 
-        // Register global functions
-        script.Globals["shell"] = (Func<string, int, string>)ShellExecute;
-        script.Globals["shell_simple"] = (Func<string, string>)ShellExecuteSimple;
-        script.Globals["read_file"] = (Func<string, string?>)ReadFile;
-        script.Globals["write_file"] = (Func<string, string, bool>)WriteFile;
-        script.Globals["file_exists"] = (Func<string, bool>)FileExists;
-        script.Globals["list_dir"] = (Func<string, string[]?>)ListDirectory;
-        script.Globals["get_cwd"] = (Func<string>)GetCurrentDirectory;
-        script.Globals["env"] = (Func<string, string?>)GetEnvironmentVariable;
-        script.Globals["print_line"] = (Action<string>)PrintLine;
-        script.Globals["format_size"] = (Func<long, string>)FormatSize;
+    /// <summary>
+    /// Short description of the plugin.
+    /// </summary>
+    public virtual string Description => string.Empty;
 
-        return script;
-    }
+    /// <summary>
+    /// Return the commands provided by this plugin.
+    /// </summary>
+    public abstract IEnumerable<PluginCommand> GetCommands();
 
     /// <summary>
     /// Execute a shell command and return the output.
@@ -43,7 +31,7 @@ public sealed class LuaPluginService
     /// <param name="command">The command to execute</param>
     /// <param name="timeoutMs">Timeout in milliseconds (default 30000)</param>
     /// <returns>Command output (stdout + stderr)</returns>
-    public string ShellExecute(string command, int timeoutMs = 30000)
+    protected static string Shell(string command, int timeoutMs = 30000)
     {
         if (string.IsNullOrWhiteSpace(command))
             return "Error: Empty command";
@@ -54,17 +42,16 @@ public sealed class LuaPluginService
             var fileName = isWindows ? "cmd.exe" : "/bin/sh";
             var arguments = isWindows ? $"/c {command}" : $"-c \"{command}\"";
 
-            using var process = new Process
+            using var process = new System.Diagnostics.Process
             {
-                StartInfo = new ProcessStartInfo
+                StartInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = fileName,
                     Arguments = arguments,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = _workingDirectory
+                    CreateNoWindow = true
                 }
             };
 
@@ -90,14 +77,9 @@ public sealed class LuaPluginService
     }
 
     /// <summary>
-    /// Simple shell execute with default timeout.
-    /// </summary>
-    public string ShellExecuteSimple(string command) => ShellExecute(command, 30000);
-
-    /// <summary>
     /// Read the contents of a file.
     /// </summary>
-    public string? ReadFile(string path)
+    protected static string? ReadFile(string path)
     {
         try
         {
@@ -116,7 +98,7 @@ public sealed class LuaPluginService
     /// <summary>
     /// Write content to a file.
     /// </summary>
-    public bool WriteFile(string path, string content)
+    protected static bool WriteFile(string path, string content)
     {
         try
         {
@@ -138,12 +120,12 @@ public sealed class LuaPluginService
     /// <summary>
     /// Check if a file exists.
     /// </summary>
-    public bool FileExists(string path) => File.Exists(ResolvePath(path));
+    protected static bool FileExists(string path) => File.Exists(ResolvePath(path));
 
     /// <summary>
     /// List files in a directory.
     /// </summary>
-    public string[]? ListDirectory(string path)
+    protected static string[]? ListDirectory(string path)
     {
         try
         {
@@ -166,22 +148,17 @@ public sealed class LuaPluginService
     /// <summary>
     /// Get the current working directory.
     /// </summary>
-    public string GetCurrentDirectory() => _workingDirectory;
+    protected static string GetWorkingDirectory() => Directory.GetCurrentDirectory();
 
     /// <summary>
     /// Get an environment variable.
     /// </summary>
-    public string? GetEnvironmentVariable(string name) => Environment.GetEnvironmentVariable(name);
-
-    /// <summary>
-    /// Print a line (for debugging/testing).
-    /// </summary>
-    public void PrintLine(string message) => Console.WriteLine(message);
+    protected static string? GetEnvironmentVariable(string name) => Environment.GetEnvironmentVariable(name);
 
     /// <summary>
     /// Format a byte size as human readable.
     /// </summary>
-    public static string FormatSize(long bytes) =>
+    protected static string FormatSize(long bytes) =>
         bytes switch
         {
             < 1024 => $"{bytes} B",
@@ -193,7 +170,7 @@ public sealed class LuaPluginService
     /// <summary>
     /// Resolve a path (handle ~ for home directory and relative paths).
     /// </summary>
-    private static string ResolvePath(string path)
+    protected static string ResolvePath(string path)
     {
         if (path.StartsWith('~'))
         {

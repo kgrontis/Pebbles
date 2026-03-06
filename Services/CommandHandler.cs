@@ -398,7 +398,7 @@ public class CommandHandler : ICommandHandler
             lines.Add($"  Plugins: {result.TotalCommands} command(s) from {result.Plugins.Count} plugin(s)");
             foreach (var plugin in result.Plugins)
             {
-                lines.Add($"    [dim]•[/] {plugin.Name} v{plugin.Version} ({plugin.Commands.Count} commands)");
+                lines.Add($"    [dim]•[/] {plugin.Name} v{plugin.Version} ({plugin.Instance?.GetCommands().Count() ?? 0} commands)");
             }
         }
         else
@@ -436,7 +436,7 @@ public class CommandHandler : ICommandHandler
                   Global:   [dim]~/.pebbles/agent/plugins/scripts/[/]
                   Project:  [dim]./.pebbles/agent/plugins/scripts/[/]
 
-                Create a Lua script in one of these directories to add custom commands.
+                Create a C# script in one of these directories to add custom commands.
                 Use /reload to load new plugins.
                 """));
         }
@@ -453,8 +453,9 @@ public class CommandHandler : ICommandHandler
             lines.Add($"  [bold]{plugin.Name}[/] [dim]v{plugin.Version}[/]");
             if (!string.IsNullOrEmpty(plugin.Description))
                 lines.Add($"    [dim]{plugin.Description}[/]");
-            lines.Add($"    [dim]Commands: {plugin.Commands.Count}[/]");
-            foreach (var cmd in plugin.Commands)
+            var commands = plugin.Instance?.GetCommands().ToList() ?? [];
+            lines.Add($"    [dim]Commands: {commands.Count}[/]");
+            foreach (var cmd in commands)
             {
                 lines.Add($"      [dim]•[/] {cmd.Name} — {cmd.Description}");
             }

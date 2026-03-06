@@ -29,7 +29,7 @@ services.AddSingleton(options);
 services.AddSingleton<ContextManager>();
 services.AddSingleton<IFileService, FileService>();
 services.AddSingleton<IModelPicker, ModelPicker>();
-services.AddSingleton<LuaPluginService>();
+services.AddSingleton<RoslynPluginService>();
 services.AddSingleton<IPluginLoader, PluginLoader>();
 
 // Choose AI provider based on configuration
