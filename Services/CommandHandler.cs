@@ -10,17 +10,27 @@ using Pebbles.Configuration;
 public class CommandHandler : ICommandHandler
 {
     private readonly Dictionary<string, SlashCommand> _commands;
+    private readonly Dictionary<string, SlashCommand> _extensionCommands;
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
     private readonly IFileService _fileService;
     private readonly IModelPicker _modelPicker;
+    private readonly IExtensionLoader _extensionLoader;
 
-    public CommandHandler(PebblesOptions options, ContextManager contextManager, IFileService fileService, IModelPicker modelPicker)
+    public CommandHandler(
+        PebblesOptions options,
+        ContextManager contextManager,
+        IFileService fileService,
+        IModelPicker modelPicker,
+        IExtensionLoader extensionLoader)
     {
         _options = options;
         _contextManager = contextManager;
         _fileService = fileService;
         _modelPicker = modelPicker;
+        _extensionLoader = extensionLoader;
+        _extensionCommands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase);
+
         _commands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase)
         {
             ["/help"] = new SlashCommand
@@ -93,6 +103,20 @@ public class CommandHandler : ICommandHandler
                 Usage = "/clearfiles",
                 Handler = HandleClearFiles
             },
+            ["/reload"] = new SlashCommand
+            {
+                Name = "/reload",
+                Description = "Reload extensions",
+                Usage = "/reload",
+                Handler = HandleReload
+            },
+            ["/extensions"] = new SlashCommand
+            {
+                Name = "/extensions",
+                Description = "List loaded extensions",
+                Usage = "/extensions",
+                Handler = HandleExtensions
+            },
             ["/exit"] = new SlashCommand
             {
                 Name = "/exit",
@@ -101,9 +125,25 @@ public class CommandHandler : ICommandHandler
                 Handler = HandleExit
             }
         };
+
+        // Load extension commands on startup
+        RefreshExtensionCommands();
     }
 
-    public IEnumerable<SlashCommand> Commands => _commands.Values;
+    /// <summary>
+    /// All commands (built-in + extensions).
+    /// </summary>
+    public IEnumerable<SlashCommand> Commands => _commands.Values.Concat(_extensionCommands.Values);
+
+    /// <summary>
+    /// Built-in commands only.
+    /// </summary>
+    public IEnumerable<SlashCommand> BuiltInCommands => _commands.Values;
+
+    /// <summary>
+    /// Extension commands only.
+    /// </summary>
+    public IEnumerable<SlashCommand> ExtensionCommands => _extensionCommands.Values;
 
     public bool IsCommand(string input) =>
         input.TrimStart().StartsWith('/');
@@ -117,17 +157,52 @@ public class CommandHandler : ICommandHandler
         var cmdName = parts[0];
         var args = parts.Length > 1 ? parts[1..] : [];
 
+        // Check built-in commands first
         if (_commands.TryGetValue(cmdName, out var command))
             return await command.Handler(args, session);
+
+        // Then check extension commands
+        if (_extensionCommands.TryGetValue(cmdName, out var extCommand))
+            return await extCommand.Handler(args, session);
 
         return CommandResult.Fail($"Unknown command: {cmdName}. Type /help for available commands.");
     }
 
+    /// <summary>
+    /// Refresh extension commands from the extension loader.
+    /// </summary>
+    public void RefreshExtensionCommands()
+    {
+        _extensionCommands.Clear();
+
+        foreach (var cmd in _extensionLoader.GetExtensionCommands())
+        {
+            _extensionCommands[cmd.Name] = cmd;
+        }
+    }
+
     private Task<CommandResult> HandleHelp(string[] args, ChatSession session)
     {
-        var lines = new List<string> { "" };
+        var lines = new List<string>
+        {
+            "",
+            "[bold]Built-in Commands[/]",
+            ""
+        };
+
         foreach (var cmd in _commands.Values.OrderBy(c => c.Name))
             lines.Add($"  {cmd.Usage,-25} {cmd.Description}");
+
+        if (_extensionCommands.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("[bold]Extension Commands[/]");
+            lines.Add("");
+
+            foreach (var cmd in _extensionCommands.Values.OrderBy(c => c.Name))
+                lines.Add($"  {cmd.Usage,-25} {cmd.Description}");
+        }
+
         lines.Add("");
 
         return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
@@ -303,6 +378,91 @@ public class CommandHandler : ICommandHandler
         _fileService.ClearFiles();
 
         return Task.FromResult(CommandResult.Ok($"\n[dim]Cleared {count} file(s) from context.[/]\n"));
+    }
+
+    private Task<CommandResult> HandleReload(string[] args, ChatSession session)
+    {
+        var result = _extensionLoader.LoadExtensions();
+        RefreshExtensionCommands();
+
+        var lines = new List<string>
+        {
+            "",
+            $"[bold green]✓[/] Reloaded extensions",
+            ""
+        };
+
+        if (result.Extensions.Count > 0)
+        {
+            lines.Add($"  Extensions: {result.TotalCommands} command(s) from {result.Extensions.Count} extension(s)");
+            foreach (var ext in result.Extensions)
+            {
+                lines.Add($"    [dim]•[/] {ext.Name} v{ext.Version} ({ext.Commands.Count} commands)");
+            }
+        }
+        else
+        {
+            lines.Add("  [dim]No extensions loaded.[/]");
+        }
+
+        if (result.Errors.Count > 0)
+        {
+            lines.Add("");
+            lines.Add($"  [bold yellow]Warnings:[/]");
+            foreach (var (path, error) in result.Errors)
+            {
+                lines.Add($"    [dim]•[/] {Path.GetFileName(path)}: {error}");
+            }
+        }
+
+        lines.Add("");
+
+        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
+    }
+
+    private Task<CommandResult> HandleExtensions(string[] args, ChatSession session)
+    {
+        var extensions = _extensionLoader.Extensions;
+
+        if (extensions.Count == 0)
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Task.FromResult(CommandResult.Ok($"""
+
+                [dim]No extensions loaded.[/]
+
+                Extension directories:
+                  Global:   [dim]~/.pebbles/agent/extensions/scripts/[/]
+                  Project:  [dim]./.pebbles/agent/extensions/scripts/[/]
+
+                Create a Lua script in one of these directories to add custom commands.
+                Use /reload to load new extensions.
+                """));
+        }
+
+        var lines = new List<string>
+        {
+            "",
+            $"[bold]Loaded Extensions ({extensions.Count})[/]",
+            ""
+        };
+
+        foreach (var ext in extensions)
+        {
+            lines.Add($"  [bold]{ext.Name}[/] [dim]v{ext.Version}[/]");
+            if (!string.IsNullOrEmpty(ext.Description))
+                lines.Add($"    [dim]{ext.Description}[/]");
+            lines.Add($"    [dim]Commands: {ext.Commands.Count}[/]");
+            foreach (var cmd in ext.Commands)
+            {
+                lines.Add($"      [dim]•[/] {cmd.Name} — {cmd.Description}");
+            }
+            lines.Add("");
+        }
+
+        lines.Add("[dim]Use /reload to reload extensions.[/]");
+
+        return Task.FromResult(CommandResult.Ok(string.Join("\n", lines)));
     }
 
     private static string FormatSize(long bytes) =>

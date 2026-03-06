@@ -29,6 +29,8 @@ services.AddSingleton(options);
 services.AddSingleton<ContextManager>();
 services.AddSingleton<IFileService, FileService>();
 services.AddSingleton<IModelPicker, ModelPicker>();
+services.AddSingleton<LuaExtensionService>();
+services.AddSingleton<IExtensionLoader, ExtensionLoader>();
 
 // Choose AI provider based on configuration
 if (options.Provider.Equals("dashscope", StringComparison.OrdinalIgnoreCase))
@@ -45,7 +47,8 @@ services.AddSingleton<ICommandHandler, CommandHandler>(sp =>
     var ctx = sp.GetRequiredService<ContextManager>();
     var fileSvc = sp.GetRequiredService<IFileService>();
     var modelPicker = sp.GetRequiredService<IModelPicker>();
-    return new CommandHandler(options, ctx, fileSvc, modelPicker);
+    var extLoader = sp.GetRequiredService<IExtensionLoader>();
+    return new CommandHandler(options, ctx, fileSvc, modelPicker, extLoader);
 });
 services.AddSingleton<IChatRenderer, ChatRenderer>();
 services.AddSingleton<IInputHandler>(sp =>
