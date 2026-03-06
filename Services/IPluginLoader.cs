@@ -1,6 +1,7 @@
 namespace Pebbles.Services;
 
 using Pebbles.Models;
+using Pebbles.Plugins;
 
 /// <summary>
 /// Interface for plugin loading.
@@ -10,7 +11,7 @@ public interface IPluginLoader
     /// <summary>
     /// Currently loaded plugins.
     /// </summary>
-    IReadOnlyList<LuaPlugin> Plugins { get; }
+    IReadOnlyList<CSharpPlugin> Plugins { get; }
 
     /// <summary>
     /// Load plugins from global and project directories.

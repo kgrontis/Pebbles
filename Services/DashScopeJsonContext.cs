@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Pebbles.Services;
 
 /// <summary>
-/// Source-generated JSON context for Native AOT compatibility.
+/// Source-generated JSON context for optimized serialization.
 /// </summary>
 [JsonSerializable(typeof(ChatCompletionRequest))]
 [JsonSerializable(typeof(ChatMessageItem))]

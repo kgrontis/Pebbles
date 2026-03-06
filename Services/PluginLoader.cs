@@ -1,24 +1,22 @@
 namespace Pebbles.Services;
 
-using System.Diagnostics;
-using MoonSharp.Interpreter;
 using Pebbles.Models;
+using Pebbles.Plugins;
 
 /// <summary>
-/// Discovers and loads Lua plugins from global and project directories.
+/// Discovers and loads C# plugins from global and project directories.
 /// </summary>
 public sealed class PluginLoader : IPluginLoader
 {
-    private readonly LuaPluginService _luaService;
+    private readonly RoslynPluginService _roslynService;
     private readonly string _globalPluginsPath;
     private readonly string _projectPluginsPath;
 
-    private List<LuaPlugin> _plugins = [];
-    private Script? _script;
+    private List<CSharpPlugin> _plugins = [];
 
-    public PluginLoader(LuaPluginService luaService)
+    public PluginLoader(RoslynPluginService roslynService)
     {
-        _luaService = luaService;
+        _roslynService = roslynService;
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _globalPluginsPath = Path.Combine(home, ".pebbles", "agent", "plugins", "scripts");
@@ -26,44 +24,41 @@ public sealed class PluginLoader : IPluginLoader
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<LuaPlugin> Plugins => _plugins.AsReadOnly();
+    public IReadOnlyList<CSharpPlugin> Plugins => _plugins.AsReadOnly();
 
     /// <inheritdoc />
     public PluginLoadResult LoadPlugins()
     {
         var result = new PluginLoadResult();
         _plugins = [];
-        _script = _luaService.CreateScript();
 
         var scriptPaths = new List<string>();
 
         // Discover scripts from global path
         if (Directory.Exists(_globalPluginsPath))
         {
-            scriptPaths.AddRange(Directory.GetFiles(_globalPluginsPath, "*.lua"));
+            scriptPaths.AddRange(Directory.GetFiles(_globalPluginsPath, "*.cs"));
         }
 
         // Discover scripts from project path
         if (Directory.Exists(_projectPluginsPath))
         {
-            scriptPaths.AddRange(Directory.GetFiles(_projectPluginsPath, "*.lua"));
+            scriptPaths.AddRange(Directory.GetFiles(_projectPluginsPath, "*.cs"));
         }
 
         // Load each script
         foreach (var scriptPath in scriptPaths.Distinct())
         {
-            try
+            var (plugin, error) = _roslynService.LoadPlugin(scriptPath);
+            
+            if (plugin is not null)
             {
-                var plugin = LoadPlugin(scriptPath);
-                if (plugin is not null)
-                {
-                    result.Plugins.Add(plugin);
-                    _plugins.Add(plugin);
-                }
+                result.Plugins.Add(plugin);
+                _plugins.Add(plugin);
             }
-            catch (Exception ex)
+            else if (error is not null)
             {
-                result.Errors.Add((scriptPath, ex.Message));
+                result.Errors.Add((scriptPath, error));
             }
         }
 
@@ -75,7 +70,9 @@ public sealed class PluginLoader : IPluginLoader
     {
         foreach (var plugin in _plugins)
         {
-            foreach (var cmd in plugin.Commands)
+            if (plugin.Instance is null) continue;
+
+            foreach (var cmd in plugin.Instance.GetCommands())
             {
                 yield return new SlashCommand
                 {
@@ -89,84 +86,7 @@ public sealed class PluginLoader : IPluginLoader
     }
 
     /// <summary>
-    /// Load a single Lua plugin file.
-    /// </summary>
-    private LuaPlugin? LoadPlugin(string scriptPath)
-    {
-        if (_script is null)
-            return null;
-
-        var code = File.ReadAllText(scriptPath);
-        _script.DoString(code);
-
-        var plugin = new LuaPlugin
-        {
-            SourcePath = scriptPath
-        };
-
-        // Extract plugin metadata
-        var pluginTable = _script.Globals.Get("plugin");
-        if (pluginTable.Type == DataType.Table)
-        {
-            plugin.Name = pluginTable.Table?.Get("name")?.String ?? Path.GetFileNameWithoutExtension(scriptPath);
-            plugin.Version = pluginTable.Table?.Get("version")?.String ?? "1.0.0";
-            plugin.Description = pluginTable.Table?.Get("description")?.String ?? string.Empty;
-        }
-        else
-        {
-            plugin.Name = Path.GetFileNameWithoutExtension(scriptPath);
-        }
-
-        // Extract commands
-        var commandsTable = _script.Globals.Get("commands");
-        if (commandsTable.Type == DataType.Table)
-        {
-            foreach (var entry in commandsTable.Table.Pairs)
-            {
-                if (entry.Value.Type == DataType.Table)
-                {
-                    var cmdTable = entry.Value.Table;
-                    var name = cmdTable.Get("name")?.String;
-                    var handler = cmdTable.Get("handler");
-
-                    if (!string.IsNullOrEmpty(name) && handler.Type == DataType.Function)
-                    {
-                        plugin.Commands.Add(new PluginCommand
-                        {
-                            Name = name,
-                            Description = cmdTable.Get("description")?.String ?? string.Empty,
-                            Usage = cmdTable.Get("usage")?.String ?? name,
-                            Handler = handler
-                        });
-                    }
-                }
-            }
-        }
-
-        // Extract hooks
-        var hooksTable = _script.Globals.Get("hooks");
-        if (hooksTable.Type == DataType.Table)
-        {
-            var hookTypes = new[] { "on_start", "on_before_send", "on_after_receive", "on_command" };
-            foreach (var hookType in hookTypes)
-            {
-                var hook = hooksTable.Table.Get(hookType);
-                if (hook.Type == DataType.Function)
-                {
-                    plugin.Hooks.Add(new PluginHook
-                    {
-                        Type = hookType,
-                        Handler = hook
-                    });
-                }
-            }
-        }
-
-        return plugin;
-    }
-
-    /// <summary>
-    /// Create a command handler that invokes the Lua function.
+    /// Create a command handler that invokes the C# plugin method.
     /// </summary>
     private Func<string[], ChatSession, Task<CommandResult>> CreateCommandHandler(PluginCommand cmd)
     {
@@ -174,42 +94,19 @@ public sealed class PluginLoader : IPluginLoader
         {
             try
             {
-                if (_script is null || cmd.Handler is not DynValue handler)
-                    return Task.FromResult(CommandResult.Fail("Plugin not loaded properly."));
-
-                // Create args table
-                var argsTable = DynValue.NewTable(_script);
-                for (int i = 0; i < args.Length; i++)
+                var pluginSession = new PluginSession
                 {
-                    argsTable.Table.Set(i + 1, DynValue.NewString(args[i]));
-                }
-
-                // Create session table (read-only snapshot)
-                var sessionTable = DynValue.NewTable(_script);
-                sessionTable.Table.Set("model", DynValue.NewString(session.Model));
-                sessionTable.Table.Set("total_input_tokens", DynValue.NewNumber(session.TotalInputTokens));
-                sessionTable.Table.Set("total_output_tokens", DynValue.NewNumber(session.TotalOutputTokens));
-                sessionTable.Table.Set("total_cost", DynValue.NewNumber((double)session.TotalCost));
-
-                // Call the Lua handler
-                var result = _script.Call(handler, argsTable, sessionTable);
-
-                var output = result.Type switch
-                {
-                    DataType.String => result.String,
-                    DataType.Number => result.Number.ToString(),
-                    DataType.Boolean => result.Boolean ? "true" : "false",
-                    DataType.Nil => string.Empty,
-                    _ => result.ToString()
+                    Model = session.Model,
+                    TotalInputTokens = session.TotalInputTokens,
+                    TotalOutputTokens = session.TotalOutputTokens,
+                    TotalCost = (decimal)session.TotalCost
                 };
 
+                var result = cmd.Handler(args, pluginSession);
+                
                 // Return raw output so it appears on its own line without the ● prefix
                 // Allow markup so plugins can use Spectre formatting
-                return Task.FromResult(CommandResult.Raw(output, allowMarkup: true));
-            }
-            catch (InterpreterException ex)
-            {
-                return Task.FromResult(CommandResult.Fail($"Lua error: {ex.Message}"));
+                return Task.FromResult(CommandResult.Raw(result, allowMarkup: true));
             }
             catch (Exception ex)
             {

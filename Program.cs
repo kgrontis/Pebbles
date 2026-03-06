@@ -10,7 +10,7 @@ var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: false)
     .Build();
 
-// Configure options (AOT-friendly manual binding)
+// Configure options
 var options = new PebblesOptions();
 var section = configuration.GetSection(PebblesOptions.SectionName);
 options.DefaultModel = section["DefaultModel"] ?? options.DefaultModel;
@@ -29,7 +29,7 @@ services.AddSingleton(options);
 services.AddSingleton<ContextManager>();
 services.AddSingleton<IFileService, FileService>();
 services.AddSingleton<IModelPicker, ModelPicker>();
-services.AddSingleton<LuaPluginService>();
+services.AddSingleton<RoslynPluginService>();
 services.AddSingleton<IPluginLoader, PluginLoader>();
 
 // Choose AI provider based on configuration
