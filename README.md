@@ -332,7 +332,7 @@ Or specify directly:
 
 ### 🔌 Plugin System
 
-Pebbles supports Lua plugins for adding custom commands. Plugins are loaded from:
+Pebbles supports C# plugins compiled at runtime using Roslyn. Plugins are loaded from:
 
 - **Global:** `~/.pebbles/agent/plugins/scripts/`
 - **Project:** `./.pebbles/agent/plugins/scripts/`
@@ -346,59 +346,79 @@ Pebbles supports Lua plugins for adding custom commands. Plugins are loaded from
 
 #### Creating a Plugin
 
-Create a `.lua` file in the plugins directory:
+Create a `.cs` file in the plugins directory:
 
-```lua
--- ~/.pebbles/agent/plugins/scripts/my-tools.lua
+```csharp
+// ~/.pebbles/agent/plugins/scripts/MyTools.cs
 
-plugin = {
-    name = "my-tools",
-    version = "1.0.0",
-    description = "My custom commands"
-}
+using Pebbles.Plugins;
 
-commands = {
+public class MyTools : PluginBase
+{
+    public override string Name => "my-tools";
+    public override string Version => "1.0.0";
+    public override string Description => "My custom commands";
+
+    public override IEnumerable<Command> GetCommands()
     {
-        name = "/mycmd",
-        description = "My custom command",
-        usage = "/mycmd [args]",
-        handler = function(args, session)
-            return "Hello from my plugin! Args: " .. table.concat(args, " ")
-        end
-    },
-    {
-        name = "/git",
-        description = "Run git commands",
-        handler = function(args, session)
-            return shell("git " .. table.concat(args, " "))
-        end
+        yield return new Command
+        {
+            Name = "/mycmd",
+            Description = "My custom command",
+            Usage = "/mycmd [args]",
+            Handler = (args, session) =>
+            {
+                return $"Hello from my plugin! Args: {string.Join(" ", args)}";
+            }
+        };
+
+        yield return new Command
+        {
+            Name = "/git",
+            Description = "Run git commands",
+            Handler = (args, session) =>
+            {
+                return Shell($"git {string.Join(" ", args)}");
+            }
+        };
     }
 }
 ```
 
-#### Available Lua Functions
+#### Plugin Base Class
 
-| Function | Description |
-|----------|-------------|
-| `shell(cmd, timeout?)` | Execute a shell command, return output (timeout in ms, default 30000) |
-| `shell_simple(cmd)` | Execute a shell command with default 30s timeout |
-| `read_file(path)` | Read file contents |
-| `write_file(path, content)` | Write to a file |
-| `file_exists(path)` | Check if file exists |
-| `list_dir(path)` | List directory contents |
-| `get_cwd()` | Get current working directory |
-| `env(name)` | Get environment variable |
-| `print_line(msg)` | Print a message to console (for debugging) |
-| `format_size(bytes)` | Format bytes as human-readable |
+Inherit from `PluginBase` and override:
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `Name` | `string` | Plugin identifier |
+| `Version` | `string` | Plugin version |
+| `Description` | `string` | Short description |
+| `GetCommands()` | `IEnumerable<Command>` | Return plugin commands |
+
+#### Available Helper Methods
+
+| Method | Description |
+|--------|-------------|
+| `Shell(cmd, timeoutMs?)` | Execute a shell command, return output (default timeout 30s) |
+| `ReadFile(path)` | Read file contents |
+| `WriteFile(path, content)` | Write to a file |
+| `FileExists(path)` | Check if file exists |
+| `ListDirectory(path)` | List directory contents |
+| `GetWorkingDirectory()` | Get current working directory |
+| `GetEnvironmentVariable(name)` | Get environment variable |
+| `FormatSize(bytes)` | Format bytes as human-readable |
 
 #### Session Object
 
 The `session` parameter in command handlers provides:
 
-- `session.model` — Current model name
-- `session.total_input_tokens` — Input token count
-- `session.total_output_tokens` — Output token count
-- `session.total_cost` — Estimated cost in dollars
+| Property | Type | Description |
+|----------|------|-------------|
+| `Model` | `string` | Current model name |
+| `TotalInputTokens` | `int` | Input token count |
+| `TotalOutputTokens` | `int` | Output token count |
+| `TotalCost` | `decimal` | Estimated cost in dollars |
 
 ---
 
