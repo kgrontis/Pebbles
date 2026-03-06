@@ -4,13 +4,13 @@ using System.Diagnostics;
 using MoonSharp.Interpreter;
 
 /// <summary>
-/// Manages the Lua runtime and provides global functions for extensions.
+/// Manages the Lua runtime and provides global functions for plugins.
 /// </summary>
-public sealed class LuaExtensionService
+public sealed class LuaPluginService
 {
     private readonly string _workingDirectory;
 
-    public LuaExtensionService()
+    public LuaPluginService()
     {
         _workingDirectory = Directory.GetCurrentDirectory();
     }

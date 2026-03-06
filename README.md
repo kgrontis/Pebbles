@@ -29,6 +29,35 @@ Choose from 8 powerful AI models optimized for coding:
 | `MiniMax-M2.5`         | Long-context tasks        |
 | `kimi-k2.5`            | Extended conversations    |
 
+### ⌨️ Keyboard Shortcuts
+
+Navigate and control Pebbles efficiently:
+
+| Shortcut     | Action                              |
+| ------------ | ----------------------------------- |
+| `Tab`        | Accept autocomplete suggestion      |
+| `Escape`     | Dismiss suggestions / Clear input   |
+| `↑` / `↓`    | Navigate suggestions / History      |
+| `←` / `→`    | Move cursor                         |
+| `Home`       | Jump to start of line               |
+| `End`        | Jump to end of line                 |
+| `Ctrl+U`     | Clear current line                  |
+| `Ctrl+C`     | Exit Pebbles                        |
+
+### 🔍 Interactive Autocomplete
+
+**Command Autocomplete:** Type `/` to see available commands. Use `↑`/`↓` to navigate and `Tab` to accept.
+
+**File Picker:** Type `@` to browse files interactively:
+- Shows files and directories in the current folder
+- Type to filter the list
+- Navigate into directories by selecting them
+- Press `Tab` to insert the selected path
+
+### 💭 Thinking Mode
+
+When using models that support extended reasoning (like `qwen3-max-2026-01-23`), Pebbles displays the AI's thinking process in a collapsible block before the response. Use `/compact` to hide thinking blocks for a cleaner output.
+
 ### 💬 Slash Commands
 
 Full control over your session with 13 built-in commands:
@@ -45,8 +74,8 @@ Full control over your session with 13 built-in commands:
 | `/read <path>` | Read a file into context             |
 | `/files`       | List loaded files in context         |
 | `/clearfiles`  | Clear all loaded files from context  |
-| `/reload`      | Reload extensions                    |
-| `/extensions`  | List loaded extensions and commands  |
+| `/reload`      | Reload plugins                       |
+| `/plugins`     | List loaded plugins and commands     |
 | `/exit`        | Exit Pebbles                         |
 
 ### 📁 File Context
@@ -315,28 +344,28 @@ Or specify directly:
 
 ---
 
-### 🔌 Extension System
+### 🔌 Plugin System
 
-Pebbles supports Lua extensions for adding custom commands. Extensions are loaded from:
+Pebbles supports Lua plugins for adding custom commands. Plugins are loaded from:
 
-- **Global:** `~/.pebbles/agent/extensions/scripts/`
-- **Project:** `./.pebbles/agent/extensions/scripts/`
+- **Global:** `~/.pebbles/agent/plugins/scripts/`
+- **Project:** `./.pebbles/agent/plugins/scripts/`
 
-#### Extension Commands
+#### Plugin Commands
 
 | Command        | Description                          |
 | -------------- | ------------------------------------ |
-| `/reload`      | Reload all extensions                |
-| `/extensions`  | List loaded extensions and commands  |
+| `/reload`      | Reload all plugins                   |
+| `/plugins`     | List loaded plugins and commands     |
 
-#### Creating an Extension
+#### Creating a Plugin
 
-Create a `.lua` file in the extensions directory:
+Create a `.lua` file in the plugins directory:
 
 ```lua
--- ~/.pebbles/agent/extensions/scripts/my-tools.lua
+-- ~/.pebbles/agent/plugins/scripts/my-tools.lua
 
-extension = {
+plugin = {
     name = "my-tools",
     version = "1.0.0",
     description = "My custom commands"
@@ -348,7 +377,7 @@ commands = {
         description = "My custom command",
         usage = "/mycmd [args]",
         handler = function(args, session)
-            return "Hello from my extension! Args: " .. table.concat(args, " ")
+            return "Hello from my plugin! Args: " .. table.concat(args, " ")
         end
     },
     {
@@ -365,13 +394,15 @@ commands = {
 
 | Function | Description |
 |----------|-------------|
-| `shell(cmd, timeout?)` | Execute a shell command, return output |
+| `shell(cmd, timeout?)` | Execute a shell command, return output (timeout in ms, default 30000) |
+| `shell_simple(cmd)` | Execute a shell command with default 30s timeout |
 | `read_file(path)` | Read file contents |
 | `write_file(path, content)` | Write to a file |
 | `file_exists(path)` | Check if file exists |
 | `list_dir(path)` | List directory contents |
 | `get_cwd()` | Get current working directory |
 | `env(name)` | Get environment variable |
+| `print_line(msg)` | Print a message to console (for debugging) |
 | `format_size(bytes)` | Format bytes as human-readable |
 
 #### Session Object
@@ -387,9 +418,9 @@ The `session` parameter in command handlers provides:
 
 ## Roadmap
 
-### Future Extensions
+### Future Plugins
 
-Planned capabilities for the extension system:
+Planned capabilities for the plugin system:
 
 - Additional AI providers (OpenAI, Anthropic, local models)
 - Tool/function calling integration

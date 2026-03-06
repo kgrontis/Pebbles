@@ -1,22 +1,22 @@
 namespace Pebbles.Models;
 
 /// <summary>
-/// Represents a loaded Lua extension.
+/// Represents a loaded Lua plugin.
 /// </summary>
-public sealed class LuaExtension
+public sealed class LuaPlugin
 {
     /// <summary>
-    /// Extension name.
+    /// Plugin name.
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Extension version.
+    /// Plugin version.
     /// </summary>
     public string Version { get; set; } = "1.0.0";
 
     /// <summary>
-    /// Extension description.
+    /// Plugin description.
     /// </summary>
     public string Description { get; set; } = string.Empty;
 
@@ -26,20 +26,20 @@ public sealed class LuaExtension
     public string SourcePath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Commands provided by this extension.
+    /// Commands provided by this plugin.
     /// </summary>
-    public List<ExtensionCommand> Commands { get; set; } = [];
+    public List<PluginCommand> Commands { get; set; } = [];
 
     /// <summary>
-    /// Hooks provided by this extension.
+    /// Hooks provided by this plugin.
     /// </summary>
-    public List<ExtensionHook> Hooks { get; set; } = [];
+    public List<PluginHook> Hooks { get; set; } = [];
 }
 
 /// <summary>
-/// Represents a command from an extension.
+/// Represents a command from a plugin.
 /// </summary>
-public sealed class ExtensionCommand
+public sealed class PluginCommand
 {
     /// <summary>
     /// Command name (e.g., "/git").
@@ -63,9 +63,9 @@ public sealed class ExtensionCommand
 }
 
 /// <summary>
-/// Represents a hook from an extension.
+/// Represents a hook from a plugin.
 /// </summary>
-public sealed class ExtensionHook
+public sealed class PluginHook
 {
     /// <summary>
     /// Hook type (on_start, on_before_send, on_after_receive, etc.).
@@ -79,14 +79,14 @@ public sealed class ExtensionHook
 }
 
 /// <summary>
-/// Result of loading extensions.
+/// Result of loading plugins.
 /// </summary>
-public sealed class ExtensionLoadResult
+public sealed class PluginLoadResult
 {
     /// <summary>
-    /// Successfully loaded extensions.
+    /// Successfully loaded plugins.
     /// </summary>
-    public List<LuaExtension> Extensions { get; set; } = [];
+    public List<LuaPlugin> Plugins { get; set; } = [];
 
     /// <summary>
     /// Errors encountered during loading.
@@ -96,5 +96,5 @@ public sealed class ExtensionLoadResult
     /// <summary>
     /// Total number of commands loaded.
     /// </summary>
-    public int TotalCommands => Extensions.Sum(e => e.Commands.Count);
+    public int TotalCommands => Plugins.Sum(e => e.Commands.Count);
 }

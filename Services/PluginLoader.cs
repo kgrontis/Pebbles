@@ -5,48 +5,48 @@ using MoonSharp.Interpreter;
 using Pebbles.Models;
 
 /// <summary>
-/// Discovers and loads Lua extensions from global and project directories.
+/// Discovers and loads Lua plugins from global and project directories.
 /// </summary>
-public sealed class ExtensionLoader : IExtensionLoader
+public sealed class PluginLoader : IPluginLoader
 {
-    private readonly LuaExtensionService _luaService;
-    private readonly string _globalExtensionsPath;
-    private readonly string _projectExtensionsPath;
+    private readonly LuaPluginService _luaService;
+    private readonly string _globalPluginsPath;
+    private readonly string _projectPluginsPath;
 
-    private List<LuaExtension> _extensions = [];
+    private List<LuaPlugin> _plugins = [];
     private Script? _script;
 
-    public ExtensionLoader(LuaExtensionService luaService)
+    public PluginLoader(LuaPluginService luaService)
     {
         _luaService = luaService;
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _globalExtensionsPath = Path.Combine(home, ".pebbles", "agent", "extensions", "scripts");
-        _projectExtensionsPath = Path.Combine(Directory.GetCurrentDirectory(), ".pebbles", "agent", "extensions", "scripts");
+        _globalPluginsPath = Path.Combine(home, ".pebbles", "agent", "plugins", "scripts");
+        _projectPluginsPath = Path.Combine(Directory.GetCurrentDirectory(), ".pebbles", "agent", "plugins", "scripts");
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<LuaExtension> Extensions => _extensions.AsReadOnly();
+    public IReadOnlyList<LuaPlugin> Plugins => _plugins.AsReadOnly();
 
     /// <inheritdoc />
-    public ExtensionLoadResult LoadExtensions()
+    public PluginLoadResult LoadPlugins()
     {
-        var result = new ExtensionLoadResult();
-        _extensions = [];
+        var result = new PluginLoadResult();
+        _plugins = [];
         _script = _luaService.CreateScript();
 
         var scriptPaths = new List<string>();
 
         // Discover scripts from global path
-        if (Directory.Exists(_globalExtensionsPath))
+        if (Directory.Exists(_globalPluginsPath))
         {
-            scriptPaths.AddRange(Directory.GetFiles(_globalExtensionsPath, "*.lua"));
+            scriptPaths.AddRange(Directory.GetFiles(_globalPluginsPath, "*.lua"));
         }
 
         // Discover scripts from project path
-        if (Directory.Exists(_projectExtensionsPath))
+        if (Directory.Exists(_projectPluginsPath))
         {
-            scriptPaths.AddRange(Directory.GetFiles(_projectExtensionsPath, "*.lua"));
+            scriptPaths.AddRange(Directory.GetFiles(_projectPluginsPath, "*.lua"));
         }
 
         // Load each script
@@ -54,11 +54,11 @@ public sealed class ExtensionLoader : IExtensionLoader
         {
             try
             {
-                var extension = LoadExtension(scriptPath);
-                if (extension is not null)
+                var plugin = LoadPlugin(scriptPath);
+                if (plugin is not null)
                 {
-                    result.Extensions.Add(extension);
-                    _extensions.Add(extension);
+                    result.Plugins.Add(plugin);
+                    _plugins.Add(plugin);
                 }
             }
             catch (Exception ex)
@@ -71,11 +71,11 @@ public sealed class ExtensionLoader : IExtensionLoader
     }
 
     /// <inheritdoc />
-    public IEnumerable<SlashCommand> GetExtensionCommands()
+    public IEnumerable<SlashCommand> GetPluginCommands()
     {
-        foreach (var extension in _extensions)
+        foreach (var plugin in _plugins)
         {
-            foreach (var cmd in extension.Commands)
+            foreach (var cmd in plugin.Commands)
             {
                 yield return new SlashCommand
                 {
@@ -89,9 +89,9 @@ public sealed class ExtensionLoader : IExtensionLoader
     }
 
     /// <summary>
-    /// Load a single Lua extension file.
+    /// Load a single Lua plugin file.
     /// </summary>
-    private LuaExtension? LoadExtension(string scriptPath)
+    private LuaPlugin? LoadPlugin(string scriptPath)
     {
         if (_script is null)
             return null;
@@ -99,22 +99,22 @@ public sealed class ExtensionLoader : IExtensionLoader
         var code = File.ReadAllText(scriptPath);
         _script.DoString(code);
 
-        var extension = new LuaExtension
+        var plugin = new LuaPlugin
         {
             SourcePath = scriptPath
         };
 
-        // Extract extension metadata
-        var extTable = _script.Globals.Get("extension");
-        if (extTable.Type == DataType.Table)
+        // Extract plugin metadata
+        var pluginTable = _script.Globals.Get("plugin");
+        if (pluginTable.Type == DataType.Table)
         {
-            extension.Name = extTable.Table?.Get("name")?.String ?? Path.GetFileNameWithoutExtension(scriptPath);
-            extension.Version = extTable.Table?.Get("version")?.String ?? "1.0.0";
-            extension.Description = extTable.Table?.Get("description")?.String ?? string.Empty;
+            plugin.Name = pluginTable.Table?.Get("name")?.String ?? Path.GetFileNameWithoutExtension(scriptPath);
+            plugin.Version = pluginTable.Table?.Get("version")?.String ?? "1.0.0";
+            plugin.Description = pluginTable.Table?.Get("description")?.String ?? string.Empty;
         }
         else
         {
-            extension.Name = Path.GetFileNameWithoutExtension(scriptPath);
+            plugin.Name = Path.GetFileNameWithoutExtension(scriptPath);
         }
 
         // Extract commands
@@ -131,7 +131,7 @@ public sealed class ExtensionLoader : IExtensionLoader
 
                     if (!string.IsNullOrEmpty(name) && handler.Type == DataType.Function)
                     {
-                        extension.Commands.Add(new ExtensionCommand
+                        plugin.Commands.Add(new PluginCommand
                         {
                             Name = name,
                             Description = cmdTable.Get("description")?.String ?? string.Empty,
@@ -153,7 +153,7 @@ public sealed class ExtensionLoader : IExtensionLoader
                 var hook = hooksTable.Table.Get(hookType);
                 if (hook.Type == DataType.Function)
                 {
-                    extension.Hooks.Add(new ExtensionHook
+                    plugin.Hooks.Add(new PluginHook
                     {
                         Type = hookType,
                         Handler = hook
@@ -162,20 +162,20 @@ public sealed class ExtensionLoader : IExtensionLoader
             }
         }
 
-        return extension;
+        return plugin;
     }
 
     /// <summary>
     /// Create a command handler that invokes the Lua function.
     /// </summary>
-    private Func<string[], ChatSession, Task<CommandResult>> CreateCommandHandler(ExtensionCommand cmd)
+    private Func<string[], ChatSession, Task<CommandResult>> CreateCommandHandler(PluginCommand cmd)
     {
         return (args, session) =>
         {
             try
             {
                 if (_script is null || cmd.Handler is not DynValue handler)
-                    return Task.FromResult(CommandResult.Fail("Extension not loaded properly."));
+                    return Task.FromResult(CommandResult.Fail("Plugin not loaded properly."));
 
                 // Create args table
                 var argsTable = DynValue.NewTable(_script);
@@ -204,7 +204,7 @@ public sealed class ExtensionLoader : IExtensionLoader
                 };
 
                 // Return raw output so it appears on its own line without the ● prefix
-                // Allow markup so extensions can use Spectre formatting
+                // Allow markup so plugins can use Spectre formatting
                 return Task.FromResult(CommandResult.Raw(output, allowMarkup: true));
             }
             catch (InterpreterException ex)
