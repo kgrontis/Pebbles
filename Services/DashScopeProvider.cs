@@ -44,6 +44,8 @@ public class DashScopeProvider : IAIProvider
             new AuthenticationHeaderValue("Bearer", apiKey);
         _httpClient.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
+        // Add User-Agent to identify as a coding agent
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Pebbles/1.0 (Coding Agent)");
     }
 
     /// <summary>
