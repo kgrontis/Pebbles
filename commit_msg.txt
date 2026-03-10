@@ -1,0 +1,48 @@
+feat: Add tool system, context compression, and memory extraction
+
+This commit introduces three major subsystems to Pebbles:
+
+## Tool System
+- Add ITool interface and ToolRegistry for managing AI-callable tools
+- Implement ReadFileTool: reads files with support for text, images, PDFs
+  - Fixed path description to clarify relative paths are supported
+  - Handles large files with truncation, detects binary files
+- Implement SearchFileTool: searches files using ripgrep-style patterns
+- Add ToolPluginLoader for loading tools from Roslyn-compiled plugins
+- Add ToolModels.cs with OpenAI-compatible tool definition schemas
+
+## Context Compression
+- Add ICompressionService and CompressionService for automatic context management
+- Triggers when token count exceeds configurable threshold (default 70%)
+- Summarizes older messages while keeping recent ones verbatim
+- Add COMPRESSION.md prompt template for structured XML summaries
+- Track compression statistics per session (count, tokens saved, timestamps)
+- Configure per-model context window limits in PebblesOptions
+
+## Memory Extraction
+- Add IMemoryService and MemoryService for extracting user preferences
+- Extracts coding style, project conventions, personal context every N messages
+- Add MEMORY_EXTRACTION.md prompt template for structured memory extraction
+- Persists memories to .pebbles/user_memory.md for cross-session continuity
+
+## System Prompt Improvements
+- Add ISystemPromptService for dynamic system prompt construction
+- Load project-specific guidelines from .pebbles/agent/AGENTS.md
+- Include loaded tools in system prompt so AI knows available capabilities
+- Add Markdown Formatting section to AGENTS.md:
+  - Documents that table cells must be single-line (no line breaks)
+  - Provides bad vs good examples for future AI responses
+
+## Model Updates
+- Add Tool role to ChatRole enum for tool response messages
+- Add CompressionStats to ChatSession for tracking compression operations
+- Add LoadedToolPlugin and ToolPluginLoadResult models
+
+## Configuration
+- Add AutoCompressionEnabled, CompressionThreshold, KeepRecentMessages options
+- Add ModelContextWindows dictionary with token limits per model
+- Add GetContextWindowTokens() helper method
+
+This enables Pebbles to handle long conversations efficiently, remember user
+preferences across sessions, and execute tools (file reading, searching) when
+requested by the AI model.
