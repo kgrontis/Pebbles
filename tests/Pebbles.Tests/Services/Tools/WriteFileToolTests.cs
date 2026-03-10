@@ -29,10 +29,10 @@ public class WriteFileToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            result.Error.Should().BeNullOrEmpty();
-            File.Exists(testFile).Should().BeTrue();
-            File.ReadAllText(testFile).Should().Be("Hello World");
+            Assert.True(result.Success);
+            Assert.Null(result.Error);
+            Assert.True(File.Exists(testFile));
+            Assert.Equal("Hello World", File.ReadAllText(testFile));
         }
         finally
         {
@@ -52,8 +52,8 @@ public class WriteFileToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("'path' is required");
+        Assert.False(result.Success);
+        Assert.Contains("'path' is required", result.Error);
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public class WriteFileToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("'content' is required");
+        Assert.False(result.Success);
+        Assert.Contains("'content' is required", result.Error);
     }
 
     [Fact]
@@ -82,8 +82,8 @@ public class WriteFileToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("'content' is required");
+        Assert.False(result.Success);
+        Assert.Contains("'content' is required", result.Error);
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class WriteFileToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            File.Exists(nestedPath).Should().BeTrue();
+            Assert.True(result.Success);
+            Assert.True(File.Exists(nestedPath));
         }
         finally
         {
@@ -125,9 +125,9 @@ public class WriteFileToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            File.ReadAllText(testFile).Should().Be("New content");
-            result.Content.Should().Contain("Backup:");
+            Assert.True(result.Success);
+            Assert.Equal("New content", File.ReadAllText(testFile));
+            Assert.Contains("Backup:", result.Content);
         }
         finally
         {
@@ -151,9 +151,9 @@ public class WriteFileToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            File.ReadAllText(testFile).Should().Be("New content");
-            result.Content.Should().NotContain("Backup:");
+            Assert.True(result.Success);
+            Assert.Equal("New content", File.ReadAllText(testFile));
+            Assert.DoesNotContain("Backup:", result.Content);
         }
         finally
         {
@@ -173,8 +173,8 @@ public class WriteFileToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("outside allowed");
+        Assert.False(result.Success);
+        Assert.Contains("outside allowed", result.Error);
     }
 
     [Fact]
@@ -191,8 +191,8 @@ public class WriteFileToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            File.Exists(homePath).Should().BeTrue();
+            Assert.True(result.Success);
+            Assert.True(File.Exists(homePath));
         }
         finally
         {
@@ -208,13 +208,13 @@ public class WriteFileToolTests : IDisposable
         var definition = _tool.GetDefinition();
 
         // Assert
-        definition.Function.Should().NotBeNull();
-        definition.Function!.Name.Should().Be("write_file");
-        definition.Function.Description.Should().NotBeNullOrEmpty();
-        definition.Function.Parameters.Properties.Should().ContainKey("path");
-        definition.Function.Parameters.Properties.Should().ContainKey("content");
-        definition.Function.Parameters.Required.Should().Contain("path");
-        definition.Function.Parameters.Required.Should().Contain("content");
+        Assert.NotNull(definition.Function);
+        Assert.Equal("write_file", definition.Function.Name);
+        Assert.NotEmpty(definition.Function.Description);
+        Assert.Contains("path", definition.Function.Parameters.Properties.Keys);
+        Assert.Contains("content", definition.Function.Parameters.Properties.Keys);
+        Assert.Contains("path", definition.Function.Parameters.Required);
+        Assert.Contains("content", definition.Function.Parameters.Required);
     }
 
     public void Dispose()

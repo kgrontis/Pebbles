@@ -30,7 +30,7 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeTrue();
+        Assert.True(result.Succeeded);
     }
 
     [Fact]
@@ -47,8 +47,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("DefaultModel");
+        Assert.False(result.Succeeded);
+        Assert.Contains("DefaultModel", result.FailureMessage);
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("DefaultModel");
+        Assert.False(result.Succeeded);
+        Assert.Contains("DefaultModel", result.FailureMessage);
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("AvailableModels");
+        Assert.False(result.Succeeded);
+        Assert.Contains("AvailableModels", result.FailureMessage);
     }
 
     [Fact]
@@ -102,8 +102,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("InputCostPer1K");
+        Assert.False(result.Succeeded);
+        Assert.Contains("InputCostPer1K", result.FailureMessage);
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("OutputCostPer1K");
+        Assert.False(result.Succeeded);
+        Assert.Contains("OutputCostPer1K", result.FailureMessage);
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("TokenEstimationMultiplier");
+        Assert.False(result.Succeeded);
+        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage);
     }
 
     [Fact]
@@ -159,8 +159,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("TokenEstimationMultiplier");
+        Assert.False(result.Succeeded);
+        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage);
     }
 
     [Fact]
@@ -178,8 +178,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("CompressionThreshold");
+        Assert.False(result.Succeeded);
+        Assert.Contains("CompressionThreshold", result.FailureMessage);
     }
 
     [Fact]
@@ -197,8 +197,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("CompressionThreshold");
+        Assert.False(result.Succeeded);
+        Assert.Contains("CompressionThreshold", result.FailureMessage);
     }
 
     [Fact]
@@ -216,8 +216,8 @@ public class PebblesOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         // Assert
-        result.Succeeded.Should().BeFalse();
-        result.FailureMessage.Should().Contain("KeepRecentMessages");
+        Assert.False(result.Succeeded);
+        Assert.Contains("KeepRecentMessages", result.FailureMessage);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public class PebblesOptionsValidatorTests
         var tokens = options.GetContextWindowTokens("qwen3.5-plus");
 
         // Assert
-        tokens.Should().Be(1_000_000);
+        Assert.Equal(1_000_000, tokens);
     }
 
     [Fact]
@@ -243,6 +243,6 @@ public class PebblesOptionsValidatorTests
         var tokens = options.GetContextWindowTokens("unknown-model");
 
         // Assert
-        tokens.Should().Be(128_000);
+        Assert.Equal(128_000, tokens);
     }
 }

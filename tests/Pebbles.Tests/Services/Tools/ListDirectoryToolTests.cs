@@ -29,8 +29,8 @@ public class ListDirectoryToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.Content.Should().Contain("empty");
+        Assert.True(result.Success);
+        Assert.Contains("empty", result.Content);
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public class ListDirectoryToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            result.Content.Should().Contain("file1.txt");
-            result.Content.Should().Contain("file2.cs");
+            Assert.True(result.Success);
+            Assert.Contains("file1.txt", result.Content);
+            Assert.Contains("file2.cs", result.Content);
         }
         finally
         {
@@ -76,8 +76,8 @@ public class ListDirectoryToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            result.Content.Should().Contain("SubDirectory/");
+            Assert.True(result.Success);
+            Assert.Contains("SubDirectory/", result.Content);
         }
         finally
         {
@@ -103,9 +103,9 @@ public class ListDirectoryToolTests : IDisposable
             var result = await _tool.ExecuteAsync(arguments);
 
             // Assert
-            result.Success.Should().BeTrue();
-            result.Content.Should().Contain("Program.cs");
-            result.Content.Should().NotContain("README.txt");
+            Assert.True(result.Success);
+            Assert.Contains("Program.cs", result.Content);
+            Assert.DoesNotContain("README.txt", result.Content);
         }
         finally
         {
@@ -125,8 +125,8 @@ public class ListDirectoryToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.Content.Should().Contain("empty or does not exist");
+        Assert.True(result.Success);
+        Assert.Contains("empty or does not exist", result.Content);
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class ListDirectoryToolTests : IDisposable
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeTrue();
-        result.Content.Should().Contain(Directory.GetCurrentDirectory());
+        Assert.True(result.Success);
+        Assert.Contains(Directory.GetCurrentDirectory(), result.Content);
     }
 
     [Fact]
@@ -151,11 +151,11 @@ public class ListDirectoryToolTests : IDisposable
         var definition = _tool.GetDefinition();
 
         // Assert
-        definition.Function.Should().NotBeNull();
-        definition.Function!.Name.Should().Be("list_directory");
-        definition.Function.Description.Should().NotBeNullOrEmpty();
-        definition.Function.Parameters.Properties.Should().ContainKey("path");
-        definition.Function.Parameters.Properties.Should().ContainKey("filter");
+        Assert.NotNull(definition.Function);
+        Assert.Equal("list_directory", definition.Function.Name);
+        Assert.NotEmpty(definition.Function.Description);
+        Assert.Contains("path", definition.Function.Parameters.Properties.Keys);
+        Assert.Contains("filter", definition.Function.Parameters.Properties.Keys);
     }
 
     public void Dispose()

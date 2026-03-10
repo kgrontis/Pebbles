@@ -23,8 +23,8 @@ public class ShellToolTests
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("'command' is required");
+        Assert.False(result.Success);
+        Assert.Contains("'command' is required", result.Error);
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public class ShellToolTests
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("Dangerous command");
+        Assert.False(result.Success);
+        Assert.Contains("Dangerous command", result.Error);
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class ShellToolTests
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("Interactive command");
+        Assert.False(result.Success);
+        Assert.Contains("Interactive command", result.Error);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class ShellToolTests
         var result = await _tool.ExecuteAsync(arguments);
 
         // Assert
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("does not exist");
+        Assert.False(result.Success);
+        Assert.Contains("does not exist", result.Error);
     }
 
     [Fact]
@@ -79,10 +79,10 @@ public class ShellToolTests
         var definition = _tool.GetDefinition();
 
         // Assert
-        definition.Function.Should().NotBeNull();
-        definition.Function!.Name.Should().Be("run_command");
-        definition.Function.Description.Should().NotBeNullOrEmpty();
-        definition.Function.Parameters.Properties.Should().ContainKey("command");
-        definition.Function.Parameters.Required.Should().Contain("command");
+        Assert.NotNull(definition.Function);
+        Assert.Equal("run_command", definition.Function.Name);
+        Assert.NotEmpty(definition.Function.Description);
+        Assert.Contains("command", definition.Function.Parameters.Properties.Keys);
+        Assert.Contains("command", definition.Function.Parameters.Required);
     }
 }

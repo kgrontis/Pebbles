@@ -12,7 +12,7 @@ public class RetryPoliciesTests
         var policy = RetryPolicies.GetFileIoPolicy(maxRetries: 3);
 
         // Assert
-        policy.Should().NotBeNull();
+        Assert.NotNull(policy);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class RetryPoliciesTests
         });
 
         // Assert
-        retryCount.Should().Be(3);
+        Assert.Equal(3, retryCount);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class RetryPoliciesTests
         });
 
         // Assert
-        retryCount.Should().Be(3);
+        Assert.Equal(3, retryCount);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class RetryPoliciesTests
         var policy = RetryPolicies.GetShellCommandPolicy(maxRetries: 3);
 
         // Assert
-        policy.Should().NotBeNull();
+        Assert.NotNull(policy);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class RetryPoliciesTests
             }, CancellationToken.None);
         });
 
-        retryCount.Should().Be(1);
+        Assert.Equal(1, retryCount);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class RetryPoliciesTests
         var policy = RetryPolicies.GetApiPolicy(maxRetries: 5);
 
         // Assert
-        policy.Should().NotBeNull();
+        Assert.NotNull(policy);
     }
 
     [Fact]
@@ -116,6 +116,6 @@ public class RetryPoliciesTests
         });
 
         // Assert
-        retryCount.Should().Be(3);
+        Assert.Equal(3, retryCount);
     }
 }
