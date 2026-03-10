@@ -1,10 +1,11 @@
 namespace Pebbles.Services;
 
-using System.Reflection;
-using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Pebbles.Models;
+using Pebbles.Plugins;
+using System.Reflection;
+using System.Runtime.Loader;
 
 /// <summary>
 /// Compiles and loads C# plugins using Roslyn.
@@ -161,7 +162,99 @@ public sealed class RoslynPluginService
 
         return references;
     }
+
+    /// <summary>
+    /// Loads a tool plugin from a C# script file.
+    /// </summary>
+    public (LoadedToolPlugin? Plugin, string? Error) LoadToolPlugin(string scriptPath)
+    {
+        try
+        {
+            var script = File.ReadAllText(scriptPath);
+
+            // Create compilation with references
+            var compilation = CreateCompilation(script, scriptPath);
+
+            // Check for compilation errors
+            var diagnostics = compilation.GetDiagnostics()
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .ToList();
+
+            if (diagnostics.Count > 0)
+            {
+                var errors = string.Join("\n", diagnostics.Select(d => d.ToString()));
+                return (null, $"Compilation failed:\n{errors}");
+            }
+
+            // Create assembly from compilation
+            using var ms = new MemoryStream();
+            var emitResult = compilation.Emit(ms);
+
+            if (!emitResult.Success)
+            {
+                var errors = string.Join("\n", emitResult.Diagnostics.Select(d => d.ToString()));
+                return (null, $"Emit failed:\n{errors}");
+            }
+
+            ms.Position = 0;
+            var assembly = Assembly.Load(ms.ToArray());
+
+            // Find type that implements IToolPlugin
+            var pluginType = assembly.GetTypes()
+                .FirstOrDefault(t => typeof(IToolPlugin).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            if (pluginType is null)
+            {
+                return (null, "No class implementing IToolPlugin found in script");
+            }
+
+            // Create instance
+            var instance = Activator.CreateInstance(pluginType) as IToolPlugin;
+
+            if (instance is null)
+            {
+                return (null, "Failed to create plugin instance");
+            }
+
+            return (new LoadedToolPlugin
+            {
+                Name = instance.Name,
+                Version = instance.Version,
+                Description = instance.Description,
+                ScriptPath = scriptPath,
+                Instance = instance
+            }, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"Failed to load plugin: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Creates a C# compilation from source code.
+    /// </summary>
+    private CSharpCompilation CreateCompilation(string sourceCode, string sourcePath)
+    {
+        // Get references to all required assemblies
+        var references = GetMetadataReferences();
+
+        // Parse the source code
+        var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, path: sourcePath);
+
+        // Create compilation
+        var assemblyName = $"Plugin_{Path.GetFileNameWithoutExtension(sourcePath)}_{Guid.NewGuid():N}";
+        return CSharpCompilation.Create(
+            assemblyName,
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+                .WithOptimizationLevel(OptimizationLevel.Release)
+                .WithNullableContextOptions(NullableContextOptions.Enable));
+    }
 }
+
+
 
 /// <summary>
 /// Custom AssemblyLoadContext for plugin isolation.

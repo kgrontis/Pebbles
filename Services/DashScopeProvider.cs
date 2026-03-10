@@ -17,17 +17,23 @@ public class DashScopeProvider : IAIProvider
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
     private readonly IFileService _fileService;
+    private readonly ISystemPromptService _systemPromptService;
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
     private TimeSpan _thinkingDuration = TimeSpan.Zero;
     private int _lastInputTokens = 0;
     private int _lastOutputTokens = 0;
 
-    public DashScopeProvider(PebblesOptions options, ContextManager contextManager, IFileService fileService)
+    public DashScopeProvider(
+        PebblesOptions options,
+        ContextManager contextManager,
+        IFileService fileService,
+        ISystemPromptService systemPromptService)
     {
         _options = options;
         _contextManager = contextManager;
         _fileService = fileService;
+        _systemPromptService = systemPromptService;
         _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(120)
@@ -176,7 +182,7 @@ public class DashScopeProvider : IAIProvider
         var context = _contextManager.GetContextForPrompt();
         var files = _fileService.FormatFilesForPrompt();
 
-        var systemPrompt = _options.SystemPrompt;
+        var systemPrompt = _systemPromptService.GetAgentPrompt();
         if (!string.IsNullOrEmpty(context))
             systemPrompt += $"\n\n{context}";
         if (!string.IsNullOrEmpty(files))
@@ -257,6 +263,94 @@ public class DashScopeProvider : IAIProvider
         if (buffer.Length > 0)
             yield return buffer;
     }
+
+    public async Task<AIResponse> GetResponseWithToolsAsync(
+    string userInput,
+    List<ToolDefinition> tools,
+    List<ToolResult>? toolResults = null,
+    CancellationToken cancellationToken = default)
+    {
+        // Add user message to history
+        _conversationHistory.Add(ChatMessage.User(userInput, 0));
+
+        // Add tool results as separate messages if provided
+        if (toolResults is not null && toolResults.Count > 0)
+        {
+            foreach (var result in toolResults)
+            {
+                _conversationHistory.Add(new ChatMessage
+                {
+                    Role = ChatRole.Tool,
+                    Content = result.Content,
+                    TokenCount = 0
+                });
+            }
+        }
+
+        var messages = BuildMessages();
+
+        var request = new ChatCompletionRequest
+        {
+            Model = _options.DefaultModel,
+            Messages = messages,
+            Stream = false,
+            Tools = tools,
+            ToolChoice = "auto"
+        };
+
+        var url = $"{_options.DashScopeBaseUrl}/chat/completions";
+        var content = new StringContent(
+            JsonSerializer.Serialize(request, DashScopeJsonContext.Default.ChatCompletionRequest),
+            Encoding.UTF8,
+            "application/json");
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+        httpRequest.Content = content;
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseMessage = await response.Content.ReadAsStringAsync();
+        response.EnsureSuccessStatusCode();
+
+        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        var chatResponse = JsonSerializer.Deserialize<ChatCompletionResponse>(responseString);
+
+        var aiResponse = new AIResponse
+        {
+            Content = chatResponse?.Choices?.FirstOrDefault()?.Message?.Content ?? "",
+            InputTokens = chatResponse?.Usage?.PromptTokens ?? 0,
+            OutputTokens = chatResponse?.Usage?.CompletionTokens ?? 0
+        };
+
+        // Extract tool calls if present
+        if (chatResponse?.Choices?.FirstOrDefault()?.Message?.ToolCalls is not null)
+        {
+            foreach (var toolCall in chatResponse.Choices.First()?.Message?.ToolCalls ?? Enumerable.Empty<ResponseToolCall>())
+            {
+                aiResponse.ToolCalls.Add(new ToolCall
+                {
+                    Id = toolCall.Id ?? "",
+                    Type = toolCall.Type ?? "function",
+                    Function = new ToolCallFunction
+                    {
+                        Name = toolCall.Function?.Name ?? "",
+                        Arguments = toolCall.Function?.Arguments ?? "{}"
+                    }
+                });
+            }
+        }
+
+        // Update stats
+        _lastInputTokens = aiResponse.InputTokens;
+        _lastOutputTokens = aiResponse.OutputTokens;
+
+        // Add assistant response to history (only if no tool calls - tool calls will be handled separately)
+        if (aiResponse.ToolCalls.Count == 0)
+        {
+            _conversationHistory.Add(ChatMessage.Assistant(aiResponse.Content, aiResponse.OutputTokens));
+        }
+
+        return aiResponse;
+    }
 }
 
 /// <summary>
@@ -290,6 +384,8 @@ public class StreamChoice
     
     [JsonPropertyName("finish_reason")]
     public string? FinishReason { get; set; }
+    [JsonPropertyName("tool_calls")]
+    public List<StreamToolCall>? ToolCalls { get; set; }
 }
 
 public class StreamDelta
@@ -302,6 +398,30 @@ public class StreamDelta
     
     [JsonPropertyName("reasoning_content")]
     public string? ReasoningContent { get; set; }
+}
+
+public class StreamToolCall
+{
+    [JsonPropertyName("index")]
+    public int Index { get; set; }
+
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("function")]
+    public StreamFunctionCall? Function { get; set; }
+}
+
+public class StreamFunctionCall
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("arguments")]
+    public string? Arguments { get; set; }
 }
 
 /// <summary>
@@ -317,6 +437,12 @@ public class ChatCompletionRequest
     
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
+
+    [JsonPropertyName("tools")]
+    public List<ToolDefinition>? Tools { get; set; }
+
+    [JsonPropertyName("tool_choice")]
+    public string? ToolChoice { get; set; } // "auto", "none", or "required"
 }
 
 /// <summary>
@@ -329,6 +455,84 @@ public class ChatMessageItem
     
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+}
+
+public class ChatCompletionResponse
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("object")]
+    public string Object { get; set; } = string.Empty;
+
+    [JsonPropertyName("created")]
+    public long Created { get; set; }
+
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+
+    [JsonPropertyName("choices")]
+    public List<ChatResponseChoice>? Choices { get; set; }
+
+    [JsonPropertyName("usage")]
+    public ChatResponseUsage? Usage { get; set; }
+}
+
+public class ChatResponseChoice
+{
+    [JsonPropertyName("index")]
+    public int Index { get; set; }
+
+    [JsonPropertyName("message")]
+    public ChatResponseMessage? Message { get; set; }
+
+    [JsonPropertyName("finish_reason")]
+    public string? FinishReason { get; set; }
+}
+
+public class ChatResponseMessage
+{
+    [JsonPropertyName("role")]
+    public string? Role { get; set; }
+
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+
+    [JsonPropertyName("tool_calls")]
+    public List<ResponseToolCall>? ToolCalls { get; set; }
+}
+
+public class ResponseToolCall
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("function")]
+    public ResponseFunctionCall? Function { get; set; }
+}
+
+public class ResponseFunctionCall
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("arguments")]
+    public string? Arguments { get; set; }
+}
+
+public class ChatResponseUsage
+{
+    [JsonPropertyName("prompt_tokens")]
+    public int PromptTokens { get; set; }
+
+    [JsonPropertyName("completion_tokens")]
+    public int CompletionTokens { get; set; }
+
+    [JsonPropertyName("total_tokens")]
+    public int TotalTokens { get; set; }
 }
 
 // Extension method for synchronous enumeration

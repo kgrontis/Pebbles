@@ -1,15 +1,14 @@
 namespace Pebbles.Services;
 
+using System.Text;
 using System.Text.RegularExpressions;
 
 /// <summary>
 /// Implementation of file operations for including files in AI context.
 /// </summary>
-public class FileService : IFileService
+public partial class FileService : IFileService
 {
-    private static readonly Regex FileReferenceRegex = new(
-        @"@(?<path>[a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex FileReferenceRegex = GetFileReferenceRegex();
 
     private readonly Dictionary<string, FileContent> _loadedFiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _workingDirectory;
@@ -153,9 +152,14 @@ public class FileService : IFileService
             return cached;
         }
 
-        // Try to read the file
         try
         {
+            // Check if it's a directory first
+            if (Directory.Exists(absolutePath))
+            {
+                return ReadDirectory(path, absolutePath);
+            }
+
             if (!File.Exists(absolutePath))
             {
                 return new FileContent
@@ -169,19 +173,20 @@ public class FileService : IFileService
             }
 
             var fileInfo = new FileInfo(absolutePath);
+            var ext = Path.GetExtension(absolutePath).ToLowerInvariant();
 
-            // Check file size (limit to 1MB)
+            // Check if it's an image file
+            if (IsImageFile(ext))
+            {
+                return ReadImageFile(path, absolutePath, fileInfo);
+            }
+
+            // Check file size (limit to 1MB for text files)
             const long maxSize = 1 * 1024 * 1024;
             if (fileInfo.Length > maxSize)
             {
-                return new FileContent
-                {
-                    Path = path,
-                    AbsolutePath = absolutePath,
-                    Content = string.Empty,
-                    Size = fileInfo.Length,
-                    Error = $"File too large ({fileInfo.Length / 1024}KB). Maximum size is 1MB."
-                };
+                // Try to read with truncation
+                return ReadTextFileWithTruncation(path, absolutePath, fileInfo, maxSize);
             }
 
             // Check if binary file
@@ -193,7 +198,7 @@ public class FileService : IFileService
                     AbsolutePath = absolutePath,
                     Content = string.Empty,
                     Size = fileInfo.Length,
-                    Error = "Binary files are not supported. Only text files can be included."
+                    Error = "Binary files are not supported. Only text files and images can be included."
                 };
             }
 
@@ -236,6 +241,205 @@ public class FileService : IFileService
         }
     }
 
+    private static bool IsImageFile(string extension)
+    {
+        return extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg";
+    }
+
+    private static string GetMimeType(string extension)
+    {
+        return extension.ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".bmp" => "image/bmp",
+            ".svg" => "image/svg+xml",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private FileContent ReadImageFile(string path, string absolutePath, FileInfo fileInfo)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(absolutePath);
+            var base64 = Convert.ToBase64String(bytes);
+            var mimeType = GetMimeType(Path.GetExtension(absolutePath));
+
+            var fileContent = new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = base64,
+                ContentType = FileContentType.Image,
+                MimeType = mimeType,
+                Size = fileInfo.Length,
+                LastModified = fileInfo.LastWriteTimeUtc
+            };
+
+            _loadedFiles[absolutePath] = fileContent;
+            return fileContent;
+        }
+        catch (Exception ex)
+        {
+            return new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = string.Empty,
+                Size = fileInfo.Length,
+                Error = $"Error reading image: {ex.Message}"
+            };
+        }
+    }
+
+    private FileContent ReadTextFileWithTruncation(string path, string absolutePath, FileInfo fileInfo, long maxSize)
+    {
+        try
+        {
+            var lines = File.ReadAllLines(absolutePath);
+            var totalLines = lines.Length;
+
+            // Calculate how many lines we can include
+            var sb = new StringBuilder();
+            var lineCount = 0;
+            var maxBytes = maxSize - 1024; // Leave room for header
+
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var lineBytes = Encoding.UTF8.GetByteCount(line) + 1; // +1 for newline
+
+                if (sb.Length > 0 && Encoding.UTF8.GetByteCount(sb.ToString()) + lineBytes > maxBytes)
+                {
+                    break;
+                }
+
+                sb.AppendLine(line);
+                lineCount++;
+            }
+
+            var fileContent = new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = sb.ToString(),
+                Size = fileInfo.Length,
+                LastModified = fileInfo.LastWriteTimeUtc,
+                IsTruncated = true,
+                LineStart = 1,
+                LineEnd = lineCount,
+                TotalLines = totalLines
+            };
+
+            _loadedFiles[absolutePath] = fileContent;
+            return fileContent;
+        }
+        catch (Exception ex)
+        {
+            return new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = string.Empty,
+                Size = fileInfo.Length,
+                Error = $"Error reading file: {ex.Message}"
+            };
+        }
+    }
+
+    private FileContent ReadDirectory(string path, string absolutePath)
+    {
+        try
+        {
+            var structure = GenerateFolderStructure(absolutePath);
+            var dirInfo = new DirectoryInfo(absolutePath);
+
+            var fileContent = new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = structure,
+                ContentType = FileContentType.Directory,
+                Size = 0,
+                LastModified = dirInfo.LastWriteTimeUtc
+            };
+
+            _loadedFiles[absolutePath] = fileContent;
+            return fileContent;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = string.Empty,
+                Size = 0,
+                Error = $"Access denied: {path}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new FileContent
+            {
+                Path = path,
+                AbsolutePath = absolutePath,
+                Content = string.Empty,
+                Size = 0,
+                Error = $"Error reading directory: {ex.Message}"
+            };
+        }
+    }
+
+    private string GenerateFolderStructure(string directoryPath)
+    {
+        var sb = new StringBuilder();
+        GenerateFolderStructureRecursive(directoryPath, sb, "", true);
+        return sb.ToString();
+    }
+
+    private static void GenerateFolderStructureRecursive(string directoryPath, StringBuilder sb, string indent, bool isLast)
+    {
+        var dirInfo = new DirectoryInfo(directoryPath);
+        var dirName = dirInfo.Name;
+
+        // Add the directory name
+        sb.AppendLine($"{indent}{(isLast ? "└───" : "├───")}{dirName}/");
+
+        try
+        {
+            var entries = dirInfo.GetFileSystemInfos()
+                .Where(e => !e.Name.StartsWith('.'))
+                .OrderBy(e => e is DirectoryInfo ? 0 : 1)
+                .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var newIndent = indent + (isLast ? "    " : "│   ");
+
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i];
+                var entryIsLast = i == entries.Count - 1;
+
+                if (entry is DirectoryInfo subDir)
+                {
+                    GenerateFolderStructureRecursive(subDir.FullName, sb, newIndent, entryIsLast);
+                }
+                else if (entry is FileInfo file)
+                {
+                    sb.AppendLine($"{newIndent}{(entryIsLast ? "└───" : "├───")}{file.Name}");
+                }
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Skip directories we can't access
+        }
+    }
+
     public void AddFile(string path, FileContent content)
     {
         var absolutePath = ResolvePath(path);
@@ -252,26 +456,63 @@ public class FileService : IFileService
         if (_loadedFiles.Count == 0)
             return string.Empty;
 
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine();
-        sb.AppendLine("## Loaded Files");
-        sb.AppendLine("The following files have been loaded and are available for reference:");
+        sb.AppendLine("--- Content from referenced files ---");
         sb.AppendLine();
 
         foreach (var (path, content) in _loadedFiles)
         {
-            if (!content.Success)
-                continue;
+            sb.AppendLine($"### `{path}`");
 
+            if (!content.Success)
+            {
+                // Include error files with their error message
+                sb.AppendLine($"**Error:** {content.Error}");
+                sb.AppendLine();
+                continue;
+            }
+
+            // Handle image files
+            if (content.ContentType == FileContentType.Image)
+            {
+                sb.AppendLine($"**Image:** {content.MimeType} ({content.Size / 1024}KB)");
+                sb.AppendLine("```");
+                sb.AppendLine(content.Content); // base64 encoded
+                sb.AppendLine("```");
+                sb.AppendLine();
+                continue;
+            }
+
+            // Handle directories
+            if (content.ContentType == FileContentType.Directory)
+            {
+                sb.AppendLine("**Directory structure:**");
+                sb.AppendLine("```");
+                sb.AppendLine(content.Content);
+                sb.AppendLine("```");
+                sb.AppendLine();
+                continue;
+            }
+
+            // Handle text files
             var ext = Path.GetExtension(path).TrimStart('.');
             var lang = GetLanguageFromExtension(ext);
 
-            sb.AppendLine($"### `{path}`");
+            // Add truncation notice if applicable
+            if (content.IsTruncated)
+            {
+                sb.AppendLine($"Showing lines {content.LineStart}-{content.LineEnd} of {content.TotalLines} total lines.");
+                sb.AppendLine("---");
+            }
+
             sb.AppendLine($"```{lang}");
             sb.AppendLine(content.Content);
             sb.AppendLine("```");
             sb.AppendLine();
         }
+
+        sb.AppendLine("--- End of content ---");
 
         return sb.ToString();
     }
@@ -364,4 +605,7 @@ public class FileService : IFileService
             _ => ext
         };
     }
+
+    [GeneratedRegex(@"@(?<path>[a-zA-Z0-9_\-./\\]+(?:\.[a-zA-Z0-9]+|/))", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]
+    private static partial Regex GetFileReferenceRegex();
 }

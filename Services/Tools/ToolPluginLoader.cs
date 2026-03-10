@@ -1,0 +1,121 @@
+﻿namespace Pebbles.Services.Tools;
+
+using Pebbles.Models;
+
+/// <summary>
+/// Discovers and loads tool plugins from global and project directories.
+/// </summary>
+public sealed class ToolPluginLoader : IToolPluginLoader
+{
+    private readonly RoslynPluginService _roslynService;
+    private readonly string _globalPluginsPath;
+    private readonly string _projectPluginsPath;
+
+    private List<LoadedToolPlugin> _plugins = [];
+
+    public ToolPluginLoader(RoslynPluginService roslynService)
+    {
+        _roslynService = roslynService;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        _globalPluginsPath = Path.Combine(home, ".pebbles", "agent", "plugins", "scripts");
+        _projectPluginsPath = Path.Combine(Directory.GetCurrentDirectory(), ".pebbles", "agent", "plugins", "scripts");
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<LoadedToolPlugin> Plugins => _plugins.AsReadOnly();
+
+    /// <inheritdoc />
+    public ToolPluginLoadResult LoadPlugins()
+    {
+        var result = new ToolPluginLoadResult();
+        _plugins = [];
+
+        var scriptPaths = new List<string>();
+
+        // Discover scripts from global path
+        if (Directory.Exists(_globalPluginsPath))
+        {
+            scriptPaths.AddRange(Directory.GetFiles(_globalPluginsPath, "*.cs"));
+        }
+
+        // Discover scripts from project path
+        if (Directory.Exists(_projectPluginsPath))
+        {
+            scriptPaths.AddRange(Directory.GetFiles(_projectPluginsPath, "*.cs"));
+        }
+
+        // Load each script
+        foreach (var scriptPath in scriptPaths.Distinct())
+        {
+            var (plugin, error) = _roslynService.LoadToolPlugin(scriptPath);
+
+            if (plugin is not null)
+            {
+                result.Plugins.Add(plugin);
+                _plugins.Add(plugin);
+            }
+            else if (error is not null)
+            {
+                result.Errors.Add((scriptPath, error));
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<ITool> GetToolInstances()
+    {
+        foreach (var plugin in _plugins)
+        {
+            if (plugin.Instance is null) continue;
+
+            yield return new ToolPluginAdapter(plugin);
+        }
+    }
+}
+
+/// <summary>
+/// Adapter that wraps a tool plugin to implement ITool.
+/// </summary>
+internal sealed class ToolPluginAdapter : ITool
+{
+    private readonly LoadedToolPlugin _plugin;
+
+    public ToolPluginAdapter(LoadedToolPlugin plugin)
+    {
+        _plugin = plugin;
+    }
+
+    public string Name => _plugin.Instance?.Name ?? _plugin.Name;
+
+    public string Description => _plugin.Instance?.Description ?? string.Empty;
+
+    public ToolDefinition GetDefinition() => _plugin.Instance?.GetDefinition() ?? new ToolDefinition();
+
+    public async Task<ToolExecutionResult> ExecuteAsync(string arguments, CancellationToken cancellationToken = default)
+    {
+        if (_plugin.Instance is null)
+        {
+            return new ToolExecutionResult
+            {
+                Success = false,
+                Error = "Plugin instance is null"
+            };
+        }
+
+        try
+        {
+            return await _plugin.Instance.ExecuteAsync(arguments, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return new ToolExecutionResult
+            {
+                Success = false,
+                Error = $"Tool execution failed: {ex.Message}"
+            };
+        }
+    }
+}

@@ -3,13 +3,14 @@ namespace Pebbles.UI;
 using Spectre.Console;
 using Pebbles.Models;
 using Pebbles.Services;
-using Pebbles.Fonts;
 
 /// <summary>
 /// Handles all chat UI rendering using Spectre.Console.
 /// </summary>
 public class ChatRenderer : IChatRenderer
 {
+    private bool _inTable = false;
+
     public void RenderWelcome(ChatSession session)
     {
         AnsiConsole.Clear();
@@ -44,6 +45,61 @@ public class ChatRenderer : IChatRenderer
 
         foreach (var line in message.Split('\n'))
             AnsiConsole.MarkupLine($"  {Markup.Escape(line)}");
+
+        AnsiConsole.WriteLine();
+    }
+
+    public void RenderAssistantMessage(string content, ThinkingBlock? thinking = null)
+    {
+        // Render thinking block if present
+        if (thinking is not null && !string.IsNullOrEmpty(thinking.Content))
+        {
+            AnsiConsole.Markup("[bold yellow]⟡ Thinking[/]");
+            AnsiConsole.Markup("[dim] ...[/]");
+            AnsiConsole.WriteLine();
+
+            var thinkingText = Markup.Escape(thinking.Content.Trim());
+            var thinkingPanel = new Panel(new Markup(thinkingText))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Yellow),
+                Padding = new Padding(1, 0),
+                Header = new PanelHeader($"[yellow] Thinking ({thinking.Duration.TotalSeconds:F1}s) [/]")
+            };
+
+            AnsiConsole.Write(thinkingPanel);
+            AnsiConsole.WriteLine();
+        }
+
+        // Render assistant label
+        AnsiConsole.Markup("[bold mediumspringgreen]⬡ Pebbles[/]");
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine();
+
+        // Render content with markdown formatting
+        var inCodeBlock = false;
+        var currentLine = new System.Text.StringBuilder();
+
+        foreach (var c in content)
+        {
+            if (c == '\n')
+            {
+                var lineText = currentLine.ToString();
+                currentLine.Clear();
+                RenderMarkdownLine(lineText, ref inCodeBlock, ref _inTable);
+                AnsiConsole.WriteLine();
+            }
+            else
+            {
+                currentLine.Append(c);
+            }
+        }
+
+        if (currentLine.Length > 0)
+        {
+            RenderMarkdownLine(currentLine.ToString(), ref inCodeBlock, ref _inTable);
+            AnsiConsole.WriteLine();
+        }
 
         AnsiConsole.WriteLine();
     }
@@ -241,7 +297,7 @@ public class ChatRenderer : IChatRenderer
     /// Renders an assistant response with live API streaming.
     /// </summary>
     public async Task<(string Content, string Thinking, TimeSpan ThinkingDuration, int OutputTokens)> 
-        RenderAssistantLiveStreamAsync(IAIProvider provider, string userInput, bool compactMode)
+        RenderAssistantLiveStreamAsync(IAIProvider provider, string userInput)
     {
         AnsiConsole.Markup("[bold mediumspringgreen]⬡ Pebbles[/]");
         AnsiConsole.WriteLine();
