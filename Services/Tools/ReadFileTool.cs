@@ -7,15 +7,8 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to read file contents.
 /// </summary>
-public class ReadFileTool : ITool
+public sealed class ReadFileTool(IFileService fileService) : ITool
 {
-    private readonly IFileService _fileService;
-
-    public ReadFileTool(IFileService fileService)
-    {
-        _fileService = fileService;
-    }
-
     public string Name => "read_file";
 
     public string Description =>
@@ -61,9 +54,6 @@ public class ReadFileTool : ITool
 
     public async Task<ToolExecutionResult> ExecuteAsync(string arguments, CancellationToken cancellationToken = default)
     {
-        // Debug: Log the raw arguments
-        Console.WriteLine($"[DEBUG] ReadFileTool received arguments: {arguments}");
-        
         var args = JsonSerializer.Deserialize<ReadFileArgs>(arguments);
         if (args is null || string.IsNullOrWhiteSpace(args.Path))
         {
@@ -74,7 +64,7 @@ public class ReadFileTool : ITool
             };
         }
 
-        var result = _fileService.ReadFile(args.Path);
+        var result = fileService.ReadFile(args.Path);
 
         return result.Success
             ? new ToolExecutionResult { Success = true, Content = result.Content }
@@ -85,10 +75,10 @@ public class ReadFileTool : ITool
     {
         [JsonPropertyName("path")]
         public string Path { get; init; } = string.Empty;
-        
+
         [JsonPropertyName("offset")]
         public int? Offset { get; init; }
-        
+
         [JsonPropertyName("limit")]
         public int? Limit { get; init; }
     }

@@ -20,7 +20,7 @@ public class DashScopeProvider : IAIProvider
     private readonly ISystemPromptService _systemPromptService;
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
-    private TimeSpan _thinkingDuration = TimeSpan.Zero;
+    private readonly TimeSpan _thinkingDuration = TimeSpan.Zero;
     private int _lastInputTokens = 0;
     private int _lastOutputTokens = 0;
 
@@ -266,7 +266,7 @@ public class DashScopeProvider : IAIProvider
 
     public async Task<AIResponse> GetResponseWithToolsAsync(
     string userInput,
-    List<ToolDefinition> tools,
+    IReadOnlyList<ToolDefinition> tools,
     List<ToolResult>? toolResults = null,
     CancellationToken cancellationToken = default)
     {
@@ -308,7 +308,7 @@ public class DashScopeProvider : IAIProvider
         httpRequest.Content = content;
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-        var responseMessage = await response.Content.ReadAsStringAsync();
+        var responseMessage = await response.Content.ReadAsStringAsync(cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -431,15 +431,15 @@ public class ChatCompletionRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("messages")]
     public List<ChatMessageItem> Messages { get; set; } = [];
-    
+
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
 
     [JsonPropertyName("tools")]
-    public List<ToolDefinition>? Tools { get; set; }
+    public IReadOnlyList<ToolDefinition>? Tools { get; set; }
 
     [JsonPropertyName("tool_choice")]
     public string? ToolChoice { get; set; } // "auto", "none", or "required"

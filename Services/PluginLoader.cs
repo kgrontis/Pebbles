@@ -50,7 +50,7 @@ public sealed class PluginLoader : IPluginLoader
         foreach (var scriptPath in scriptPaths.Distinct())
         {
             var (plugin, error) = _roslynService.LoadPlugin(scriptPath);
-            
+
             if (plugin is not null)
             {
                 result.Plugins.Add(plugin);
@@ -88,7 +88,7 @@ public sealed class PluginLoader : IPluginLoader
     /// <summary>
     /// Create a command handler that invokes the C# plugin method.
     /// </summary>
-    private Func<string[], ChatSession, Task<CommandResult>> CreateCommandHandler(PluginCommand cmd)
+    private static Func<string[], ChatSession, CommandResult> CreateCommandHandler(PluginCommand cmd)
     {
         return (args, session) =>
         {
@@ -103,14 +103,14 @@ public sealed class PluginLoader : IPluginLoader
                 };
 
                 var result = cmd.Handler(args, pluginSession);
-                
+
                 // Return raw output so it appears on its own line without the ● prefix
                 // Allow markup so plugins can use Spectre formatting
-                return Task.FromResult(CommandResult.Raw(result, allowMarkup: true));
+                return CommandResult.Raw(result, allowMarkup: true);
             }
             catch (Exception ex)
             {
-                return Task.FromResult(CommandResult.Fail($"Error: {ex.Message}"));
+                return CommandResult.Fail($"Error: {ex.Message}");
             }
         };
     }

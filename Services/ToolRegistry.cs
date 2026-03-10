@@ -3,7 +3,10 @@ using Pebbles.Services.Tools;
 
 namespace Pebbles.Services;
 
-public class ToolRegistry
+/// <summary>
+/// Registry for managing and executing tools.
+/// </summary>
+public sealed class ToolRegistry : IToolRegistry
 {
     private readonly Dictionary<string, ITool> _tools = new(StringComparer.OrdinalIgnoreCase);
     private readonly IToolPluginLoader? _pluginLoader;
@@ -40,7 +43,7 @@ public class ToolRegistry
     /// <summary>
     /// Gets all registered tool definitions (for sending to AI).
     /// </summary>
-    public List<ToolDefinition> GetAllToolDefinitions() => [.. _tools.Values.Select(t => t.GetDefinition())];
+    public IReadOnlyList<ToolDefinition> GetAllToolDefinitions() => [.. _tools.Values.Select(t => t.GetDefinition())];
 
     /// <summary>
     /// Executes a tool by name.

@@ -398,7 +398,7 @@ public class MockAIProvider : IAIProvider
             yield return buffer;
     }
 
-    public Task<AIResponse> GetResponseWithToolsAsync(string userInput, List<ToolDefinition> tools, List<ToolResult>? toolResults = null, CancellationToken cancellationToken = default)
+    public Task<AIResponse> GetResponseWithToolsAsync(string userInput, IReadOnlyList<ToolDefinition> tools, List<ToolResult>? toolResults = null, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(new AIResponse
         {
@@ -416,12 +416,4 @@ public class MockAIProvider : IAIProvider
     {
         return TimeSpan.Zero;
     }
-}
-
-public class MockResponse
-{
-    public List<string> Keywords { get; init; } = [];
-    public string Thinking { get; init; } = string.Empty;
-    public TimeSpan ThinkingDuration { get; init; }
-    public string Content { get; init; } = string.Empty;
 }

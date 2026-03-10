@@ -47,7 +47,7 @@ public interface IAIProvider
     /// <returns>Response that may include tool calls</returns>
     Task<AIResponse> GetResponseWithToolsAsync(
         string userInput,
-        List<ToolDefinition> tools,
+        IReadOnlyList<ToolDefinition> tools,
         List<ToolResult>? toolResults = null,
         CancellationToken cancellationToken = default);
 
@@ -60,18 +60,4 @@ public interface IAIProvider
     /// Gets the last thinking duration.
     /// </summary>
     TimeSpan GetLastThinkingDuration();
-}
-
-/// <summary>
-/// Response from AI that may include tool calls.
-/// </summary>
-public record AIResponse
-{
-    public string Content { get; init; } = string.Empty;
-    public List<ToolCall> ToolCalls { get; init; } = new();
-    public int InputTokens { get; init; }
-    public int OutputTokens { get; init; }
-
-    // Optional: Include thinking if the model supports it
-    public string? Thinking { get; init; }
 }

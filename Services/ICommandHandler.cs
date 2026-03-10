@@ -13,6 +13,16 @@ public interface ICommandHandler
     IEnumerable<SlashCommand> Commands { get; }
 
     /// <summary>
+    /// Built-in commands only.
+    /// </summary>
+    IEnumerable<SlashCommand> BuiltInCommands { get; }
+
+    /// <summary>
+    /// Plugin commands only.
+    /// </summary>
+    IEnumerable<SlashCommand> PluginCommands { get; }
+
+    /// <summary>
     /// Checks if the input is a slash command.
     /// </summary>
     bool IsCommand(string input);
@@ -21,4 +31,9 @@ public interface ICommandHandler
     /// Executes a slash command.
     /// </summary>
     Task<CommandResult> ExecuteAsync(string input, ChatSession session);
+
+    /// <summary>
+    /// Refreshes plugin commands from the plugin loader.
+    /// </summary>
+    void RefreshPluginCommands();
 }

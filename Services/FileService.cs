@@ -80,10 +80,9 @@ public partial class FileService : IFileService
             }
 
             // Sort: directories first, then files, both alphabetically
-            return items
+            return [.. items
                 .OrderBy(i => !i.IsDirectory)
-                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)];
         }
         catch
         {
@@ -394,7 +393,7 @@ public partial class FileService : IFileService
         }
     }
 
-    private string GenerateFolderStructure(string directoryPath)
+    private static string GenerateFolderStructure(string directoryPath)
     {
         var sb = new StringBuilder();
         GenerateFolderStructureRecursive(directoryPath, sb, "", true);
