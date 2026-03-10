@@ -59,22 +59,27 @@ When using models that support extended reasoning (like `qwen3-max-2026-01-23`),
 
 ### 💬 Slash Commands
 
-Full control over your session with 13 built-in commands:
+Full control over your session with 17 built-in commands:
 
-| Command        | Description                          |
-| -------------- | ------------------------------------ |
-| `/help`        | Show available commands              |
-| `/clear`       | Clear chat history                   |
-| `/model`       | Switch AI model (interactive picker) |
-| `/history`     | Show conversation history summary    |
-| `/cost`        | Show token usage and estimated cost  |
-| `/context`     | Show loaded project context          |
-| `/read <path>` | Read a file into context             |
-| `/files`       | List loaded files in context         |
-| `/clearfiles`  | Clear all loaded files from context  |
-| `/reload`      | Reload plugins                       |
-| `/plugins`     | List loaded plugins and commands     |
-| `/exit`        | Exit Pebbles                         |
+| Command           | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| `/help`           | Show available commands                          |
+| `/clear`          | Clear chat history                               |
+| `/model`          | Switch AI model (interactive picker)             |
+| `/history`        | Show conversation history summary                |
+| `/cost`           | Show token usage and estimated cost              |
+| `/context`        | Show loaded project context                      |
+| `/read <path>`    | Read a file into context                         |
+| `/files`          | List loaded files in context                     |
+| `/clearfiles`     | Clear all loaded files from context              |
+| `/compress`       | Compress conversation history to save tokens     |
+| `/autocompress`   | Toggle auto-compression on/off                   |
+| `/remember <text>`| Save something to memory for future sessions     |
+| `/memory`         | View or manage saved memories                    |
+| `/reload`         | Reload plugins                                   |
+| `/plugins`        | List loaded plugins and commands                 |
+| `/tools`          | List available tools (built-in + plugins)        |
+| `/exit`           | Exit Pebbles                                     |
 
 ### 📁 File Context
 
@@ -269,7 +274,9 @@ Or specify directly:
 | `InputCostPer1K`            | decimal  | `0.0004`                                        | Cost per 1K input tokens (USD)        |
 | `OutputCostPer1K`           | decimal  | `0.0024`                                        | Cost per 1K output tokens (USD)       |
 | `TokenEstimationMultiplier` | double   | `1.3`                                           | Words × multiplier = estimated tokens |
-| `SystemPrompt`              | string   | `"You are Pebbles..."`                          | System prompt for AI                  |
+| `AutoCompressionEnabled`    | bool     | `true`                                          | Enable automatic context compression  |
+| `CompressionThreshold`      | double   | `0.7`                                           | Compress when X% of context used      |
+| `KeepRecentMessages`        | int      | `6`                                             | Messages to keep verbatim             |
 
 ---
 
@@ -287,22 +294,26 @@ Or specify directly:
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       ChatService                           │
-│  ┌──────────────┐  ┌───────────────┐  ┌────────────────┐   │
-│  │ InputHandler │→ │ CommandHandler│→ │ ChatRenderer   │   │
-│  │ (User Input) │  │ (/commands)   │  │ (Output)       │   │
-│  └──────────────┘  └───────────────┘  └────────────────┘   │
-│         │                  │                   ▲            │
-│         │                  ▼                   │            │
-│         │          ┌───────────────┐           │            │
-│         └─────────→│  IAIProvider  │───────────┘            │
-│                    │  (Streaming)  │                        │
-│                    └───────────────┘                        │
+│  ┌──────────────┐  ┌───────────────────────────────────┐   │
+│  │ InputHandler │→ │  CompositeCommandHandler          │   │
+│  │ (User Input) │  │  ├─ ChatCommands (static)         │   │
+│  └──────────────┘  │  ├─ FileCommands                  │   │
+│         │          │  ├─ CompressionCommands           │   │
+│         │          │  ├─ MemoryCommands                │   │
+│         │          │  └─ PluginCommands                │   │
+│         │          └───────────────────────────────────┘   │
+│         │                      │                            │
+│         │                      ▼                            │
+│         │          ┌───────────────────────┐                │
+│         └─────────→│    IAIProvider        │                │
+│                    │    (Streaming)        │                │
+│                    └───────────────────────┘                │
 │                           │                                 │
 │              ┌────────────┼────────────┐                    │
 │              ▼            ▼            ▼                    │
 │        ┌──────────┐ ┌───────────┐ ┌──────────┐             │
-│        │DashScope │ │FileService│ │Context   │             │
-│        │Provider  │ │(@files)   │ │Manager   │             │
+│        │ToolExec  │ │FileService│ │Context   │             │
+│        │Service   │ │(@files)   │ │Manager   │             │
 │        └──────────┘ └───────────┘ └──────────┘             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -313,18 +324,20 @@ Or specify directly:
 | ---------------- | ------------------------------------------------ |
 | `ChatService`    | Main application loop, orchestrates all services |
 | `IAIProvider`    | Abstraction for AI providers (DashScope, Mock)   |
-| `CommandHandler` | Parses and executes slash commands               |
+| `CompositeCommandHandler` | Aggregates specialized command handlers |
 | `ChatRenderer`   | UI rendering with Spectre.Console                |
 | `InputHandler`   | User input processing                            |
 | `FileService`    | File loading and @reference parsing              |
 | `ContextManager` | Project/global context management                |
 | `ModelPicker`    | Interactive model selection UI                   |
+| `ToolRegistry`   | Tool management and execution                    |
 
 ### Design Patterns
 
 - **Dependency Injection** — All services registered via `IServiceCollection`
 - **Provider Pattern** — `IAIProvider` interface for swappable AI backends
-- **Options Pattern** — Configuration via `PebblesOptions` class
+- **Options Pattern** — Configuration via `PebblesOptions` class with validation
+- **Command Pattern** — Composite pattern for slash command handling
 - **Streaming** — `IAsyncEnumerable<T>` for real-time token streaming
 
 ---
