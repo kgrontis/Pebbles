@@ -113,7 +113,10 @@ public class DashScopeProvider : IAIProvider
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
         httpRequest.Content = content;
 
-        using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var policy = RetryPolicies.GetApiPolicy();
+        using var response = await policy.ExecuteAsync(
+            async ct => await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct),
+            cancellationToken);
         response.EnsureSuccessStatusCode();
 
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -307,7 +310,10 @@ public class DashScopeProvider : IAIProvider
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
         httpRequest.Content = content;
 
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var policy = RetryPolicies.GetApiPolicy();
+        using var response = await policy.ExecuteAsync(
+            async ct => await _httpClient.SendAsync(httpRequest, ct),
+            cancellationToken);
         var responseMessage = await response.Content.ReadAsStringAsync(cancellationToken);
         response.EnsureSuccessStatusCode();
 

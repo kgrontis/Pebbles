@@ -109,6 +109,9 @@ public static class ServiceCollectionExtensions
         // Register built-in tools
         services.AddSingleton<ReadFileTool>();
         services.AddSingleton<SearchFilesTool>();
+        services.AddSingleton<ShellTool>();
+        services.AddSingleton<ListDirectoryTool>();
+        services.AddSingleton<WriteFileTool>();
 
         // Register tools in the registry
         services.AddSingleton(sp =>
@@ -119,6 +122,9 @@ public static class ServiceCollectionExtensions
             var registry = new ToolRegistry(pluginLoader);
             registry.RegisterTool(new ReadFileTool(fileService));
             registry.RegisterTool(new SearchFilesTool());
+            registry.RegisterTool(new ShellTool());
+            registry.RegisterTool(new ListDirectoryTool(fileService));
+            registry.RegisterTool(new WriteFileTool());
             registry.LoadToolPlugins();
 
             return registry;
