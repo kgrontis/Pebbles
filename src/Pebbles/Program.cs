@@ -3,10 +3,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pebbles.Configuration;
 using Pebbles.Services;
+using System.Text;
+
+// Set console encoding to UTF-8 for Unicode symbol support
+Console.OutputEncoding = Encoding.UTF8;
 
 // Build configuration
 var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
+    .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false)
     .Build();
 

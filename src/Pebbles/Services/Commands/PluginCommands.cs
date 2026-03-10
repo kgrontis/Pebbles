@@ -8,7 +8,7 @@ using Pebbles.Models;
 public sealed class PluginCommands(
     IPluginLoader pluginLoader,
     IToolPluginLoader? toolPluginLoader,
-    ICommandHandler? parentHandler = null)
+    Action? refreshCallback = null)
 {
     public CommandResult HandlePlugins()
     {
@@ -58,7 +58,7 @@ public sealed class PluginCommands(
     public CommandResult HandleReload()
     {
         var result = pluginLoader.LoadPlugins();
-        parentHandler?.RefreshPluginCommands();
+        refreshCallback?.Invoke();
 
         var lines = new List<string>
         {

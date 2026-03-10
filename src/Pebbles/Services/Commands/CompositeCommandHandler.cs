@@ -22,21 +22,23 @@ public sealed class CompositeCommandHandler : ICommandHandler
     public CompositeCommandHandler(
         CompressionCommands compressionCommands,
         MemoryCommands memoryCommands,
-        PluginCommands pluginCommandsHandler,
         FileCommands fileCommands,
         IModelPicker modelPicker,
         PebblesOptions options,
         ContextManager contextManager,
-        IPluginLoader pluginLoader)
+        IPluginLoader pluginLoader,
+        IToolPluginLoader toolPluginLoader)
     {
         _compressionCommands = compressionCommands;
         _memoryCommands = memoryCommands;
-        _pluginCommandsHandler = pluginCommandsHandler;
         _fileCommands = fileCommands;
         _modelPicker = modelPicker;
         _options = options;
         _contextManager = contextManager;
         _pluginLoader = pluginLoader;
+
+        // Create PluginCommands with refresh callback to avoid circular dependency
+        _pluginCommandsHandler = new PluginCommands(pluginLoader, toolPluginLoader, RefreshPluginCommands);
 
         RegisterBuiltInCommands();
         RefreshPluginCommands();

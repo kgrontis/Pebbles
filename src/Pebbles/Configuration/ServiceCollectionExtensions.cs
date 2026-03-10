@@ -103,8 +103,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddTools(this IServiceCollection services)
     {
         services.AddSingleton<IToolPluginLoader, ToolPluginLoader>();
-        services.AddSingleton<IToolRegistry, ToolRegistry>();
-        services.AddSingleton<IToolExecutionService, ToolExecutionService>();
 
         // Register built-in tools
         services.AddSingleton<ReadFileTool>();
@@ -113,8 +111,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ListDirectoryTool>();
         services.AddSingleton<WriteFileTool>();
 
-        // Register tools in the registry
-        services.AddSingleton(sp =>
+        // Register tool registry with tools
+        services.AddSingleton<IToolRegistry>(sp =>
         {
             var pluginLoader = sp.GetRequiredService<IToolPluginLoader>();
             var fileService = sp.GetRequiredService<IFileService>();
@@ -130,6 +128,9 @@ public static class ServiceCollectionExtensions
             return registry;
         });
 
+        // Register tool execution service AFTER registry
+        services.AddSingleton<IToolExecutionService, ToolExecutionService>();
+
         return services;
     }
 
@@ -143,9 +144,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<FileCommands>();
         services.AddSingleton<CompressionCommands>();
         services.AddSingleton<MemoryCommands>();
-        services.AddSingleton<PluginCommands>();
+        services.AddSingleton<IPluginLoader, PluginLoader>();
+        services.AddSingleton<IToolPluginLoader, ToolPluginLoader>();
 
         // Composite handler that aggregates all specialized handlers
+        // Note: PluginCommands is created internally by CompositeCommandHandler to avoid circular dependency
         services.AddSingleton<ICommandHandler, CompositeCommandHandler>();
     }
 }
