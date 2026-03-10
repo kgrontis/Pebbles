@@ -1,3 +1,4 @@
 <Solution>
-  <Project Path="Pebbles.csproj" />
+  <Project Path="src\Pebbles\Pebbles.csproj" />
+  <Project Path="tests\Pebbles.Tests\Pebbles.Tests.csproj" />
 </Solution>
