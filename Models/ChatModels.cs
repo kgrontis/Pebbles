@@ -4,7 +4,8 @@ public enum ChatRole
 {
     User,
     Assistant,
-    System
+    System,
+    Tool
 }
 
 public enum MessageStatus
@@ -64,11 +65,25 @@ public record ChatMessage
 public class ChatSession
 {
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
-    public string Model { get; set; } = "pebbles-3.5-sonnet";
+    public string Model { get; set; } = "qwen3.5-plus";
     public List<ChatMessage> Messages { get; } = [];
-    public bool CompactMode { get; set; }
     public int TotalInputTokens { get; set; }
     public int TotalOutputTokens { get; set; }
+
+    /// <summary>
+    /// Compression statistics for this session.
+    /// </summary>
+    public CompressionStats CompressionStats { get; } = new();
+
+    /// <summary>
+    /// Whether auto-compression is enabled for this session.
+    /// </summary>
+    public bool AutoCompressionEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Whether a compression operation is currently in progress.
+    /// </summary>
+    public bool IsCompressing { get; set; }
 
     public double TotalCost =>
         (TotalInputTokens * 0.003 + TotalOutputTokens * 0.015) / 1000.0;

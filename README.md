@@ -55,7 +55,7 @@ Navigate and control Pebbles efficiently:
 
 ### 💭 Thinking Mode
 
-When using models that support extended reasoning (like `qwen3-max-2026-01-23`), Pebbles displays the AI's thinking process in a collapsible block before the response. Use `/compact` to hide thinking blocks for a cleaner output.
+When using models that support extended reasoning (like `qwen3-max-2026-01-23`), Pebbles displays the AI's thinking process in a block before the response.
 
 ### 💬 Slash Commands
 
@@ -66,7 +66,6 @@ Full control over your session with 13 built-in commands:
 | `/help`        | Show available commands              |
 | `/clear`       | Clear chat history                   |
 | `/model`       | Switch AI model (interactive picker) |
-| `/compact`     | Toggle compact mode (hide thinking)  |
 | `/history`     | Show conversation history summary    |
 | `/cost`        | Show token usage and estimated cost  |
 | `/context`     | Show loaded project context          |
@@ -419,6 +418,65 @@ The `session` parameter in command handlers provides:
 | `TotalInputTokens` | `int` | Input token count |
 | `TotalOutputTokens` | `int` | Output token count |
 | `TotalCost` | `decimal` | Estimated cost in dollars |
+
+---
+
+## Context Compaction
+
+When conversations grow too large, Pebbles compresses the history into a structured XML snapshot. This preserves the "learning trajectory" (what failed, what worked, why) rather than just the final state.
+
+### Why It Matters
+
+- **Prevents repeated failures** — The agent remembers what didn't work
+- **Preserves constraints** — User preferences and requirements survive compaction
+- **Maintains progress** — Partial work isn't lost when context fills
+- **Reduces hallucination** — Exact file paths and error messages are preserved
+
+### The XML Format
+
+Compaction produces a `<state_snapshot>` with structured sections:
+
+```xml
+<state_snapshot>
+    <overall_goal>Refactor auth service to use new JWT library</overall_goal>
+    <constraints>
+        - Must maintain backward compatibility
+        - User prefers minimal comments
+    </constraints>
+    <key_knowledge>
+        - Build: `dotnet build`
+        - Tests: `dotnet test` (files end in `.Tests.cs`)
+    </key_knowledge>
+    <file_system_state>
+        - MODIFIED: Services/AuthService.cs
+        - CREATED: Services/JwtService.cs
+    </file_system_state>
+    <recent_actions>
+        - Ran tests, 2 failures in AuthTests.cs
+    </recent_actions>
+    <failed_approaches>
+        - Tried Newtonsoft.Json - conflicts with System.Text.Json
+        - `dotnet test` failed: "Mock&lt;IUserService&gt; not setup"
+    </failed_approaches>
+    <avoid>
+        - Do NOT modify LegacyAuth.cs (deprecated)
+        - Do NOT use `dynamic` keyword (runtime errors)
+    </avoid>
+    <current_plan>
+        1. [DONE] Identify deprecated API usage
+        2. [IN PROGRESS] Refactor AuthService.cs
+        3. [TODO] Fix failing tests
+    </current_plan>
+</state_snapshot>
+```
+
+### References
+
+- [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic, 2025
+- [Compaction vs Summarization](https://www.morphllm.com/compaction-vs-summarization) — Morph, 2024
+- [Two Experiments on AI Agent Compaction](https://jxnl.co/writing/2025/08/30/context-engineering-compaction/) — Jason Liu, 2025
+- [Context Engineering for Agents](https://blog.langchain.com/context-engineering-for-agents/) — LangChain, 2024
+- [Characterizing Prompt Compression Methods](https://arxiv.org/html/2407.08892v1) — arXiv, 2024
 
 ---
 

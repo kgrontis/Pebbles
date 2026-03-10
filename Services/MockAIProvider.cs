@@ -397,6 +397,25 @@ public class MockAIProvider : IAIProvider
         if (buffer.Length > 0)
             yield return buffer;
     }
+
+    public Task<AIResponse> GetResponseWithToolsAsync(string userInput, List<ToolDefinition> tools, List<ToolResult>? toolResults = null, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new AIResponse
+        {
+            Content = GetResponse(userInput).Content,
+            ToolCalls = []
+        });
+    }
+
+    public string GetLastThinking()
+    {
+        return string.Empty;
+    }
+
+    public TimeSpan GetLastThinkingDuration()
+    {
+        return TimeSpan.Zero;
+    }
 }
 
 public class MockResponse

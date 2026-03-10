@@ -132,6 +132,27 @@ public record FileReference
 }
 
 /// <summary>
+/// Type of file content.
+/// </summary>
+public enum FileContentType
+{
+    /// <summary>
+    /// Text content (code, markup, etc.).
+    /// </summary>
+    Text,
+
+    /// <summary>
+    /// Image content (PNG, JPG, GIF, WEBP, etc.).
+    /// </summary>
+    Image,
+
+    /// <summary>
+    /// Directory listing (folder structure).
+    /// </summary>
+    Directory
+}
+
+/// <summary>
 /// Content of a loaded file.
 /// </summary>
 public record FileContent
@@ -147,9 +168,19 @@ public record FileContent
     public required string AbsolutePath { get; init; }
 
     /// <summary>
-    /// File content.
+    /// File content (text or base64 for images).
     /// </summary>
     public required string Content { get; init; }
+
+    /// <summary>
+    /// Type of content (text or image).
+    /// </summary>
+    public FileContentType ContentType { get; init; } = FileContentType.Text;
+
+    /// <summary>
+    /// MIME type for binary files (e.g., "image/png").
+    /// </summary>
+    public string? MimeType { get; init; }
 
     /// <summary>
     /// File size in bytes.
@@ -170,4 +201,24 @@ public record FileContent
     /// Whether the file was read successfully.
     /// </summary>
     public bool Success => Error is null;
+
+    /// <summary>
+    /// Whether the content was truncated.
+    /// </summary>
+    public bool IsTruncated { get; init; }
+
+    /// <summary>
+    /// First line shown (1-indexed) if truncated.
+    /// </summary>
+    public int? LineStart { get; init; }
+
+    /// <summary>
+    /// Last line shown (1-indexed) if truncated.
+    /// </summary>
+    public int? LineEnd { get; init; }
+
+    /// <summary>
+    /// Total lines in the original file if truncated.
+    /// </summary>
+    public int? TotalLines { get; init; }
 }

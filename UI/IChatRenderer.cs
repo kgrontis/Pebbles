@@ -33,7 +33,7 @@ public interface IChatRenderer
     /// Returns (content, thinking, thinkingDuration, outputTokens).
     /// </summary>
     Task<(string Content, string Thinking, TimeSpan ThinkingDuration, int OutputTokens)> 
-        RenderAssistantLiveStreamAsync(IAIProvider provider, string userInput, bool compactMode);
+        RenderAssistantLiveStreamAsync(IAIProvider provider, string userInput);
 
     /// <summary>
     /// Renders the result of a slash command.
@@ -49,4 +49,9 @@ public interface IChatRenderer
     /// Renders the status bar above the input area.
     /// </summary>
     void RenderStatusBar(ChatSession session);
+
+    /// <summary>
+    /// Renders an assistant message (non-streaming, for tool calling responses).
+    /// </summary>
+    void RenderAssistantMessage(string content, ThinkingBlock? thinking = null);
 }

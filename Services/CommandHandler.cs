@@ -16,19 +16,31 @@ public class CommandHandler : ICommandHandler
     private readonly IFileService _fileService;
     private readonly IModelPicker _modelPicker;
     private readonly IPluginLoader _pluginLoader;
+    private readonly ICompressionService? _compressionService;
+    private readonly IAIProvider? _aiProvider;
+    private readonly IMemoryService? _memoryService;
+    private readonly IToolPluginLoader? _toolPluginLoader;
+
 
     public CommandHandler(
         PebblesOptions options,
         ContextManager contextManager,
         IFileService fileService,
         IModelPicker modelPicker,
-        IPluginLoader pluginLoader)
+        IPluginLoader pluginLoader,
+        ICompressionService? compressionService = null,
+        IAIProvider? aiProvider = null,
+        IMemoryService? memoryService = null,
+        IToolPluginLoader? toolPluginLoader = null)
     {
         _options = options;
         _contextManager = contextManager;
         _fileService = fileService;
         _modelPicker = modelPicker;
         _pluginLoader = pluginLoader;
+        _compressionService = compressionService;
+        _aiProvider = aiProvider;
+        _memoryService = memoryService;
         _pluginCommands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase);
 
         _commands = new Dictionary<string, SlashCommand>(StringComparer.OrdinalIgnoreCase)
@@ -54,12 +66,33 @@ public class CommandHandler : ICommandHandler
                 Usage = "/model <model-name>",
                 Handler = HandleModel
             },
-            ["/compact"] = new SlashCommand
+            ["/compress"] = new SlashCommand
             {
-                Name = "/compact",
-                Description = "Toggle compact mode (hide thinking)",
-                Usage = "/compact",
-                Handler = HandleCompact
+                Name = "/compress",
+                Description = "Compress conversation history to save tokens",
+                Usage = "/compress",
+                Handler = HandleCompress
+            },
+            ["/autocompress"] = new SlashCommand
+            {
+                Name = "/autocompress",
+                Description = "Toggle auto-compression on/off",
+                Usage = "/autocompress",
+                Handler = HandleAutoCompress
+            },
+            ["/remember"] = new SlashCommand
+            {
+                Name = "/remember",
+                Description = "Save something to memory for future sessions",
+                Usage = "/remember <text>",
+                Handler = HandleRemember
+            },
+            ["/memory"] = new SlashCommand
+            {
+                Name = "/memory",
+                Description = "View or manage saved memories",
+                Usage = "/memory [clear]",
+                Handler = HandleMemory
             },
             ["/history"] = new SlashCommand
             {
@@ -123,12 +156,20 @@ public class CommandHandler : ICommandHandler
                 Description = "Exit Pebbles",
                 Usage = "/exit",
                 Handler = HandleExit
+            },
+            ["/tools"] = new SlashCommand
+            {
+                Name = "/tools",
+                Description = "List available tools (built-in + plugins)",
+                Usage = "/tools",
+                Handler = HandleTools
             }
         };
 
         // Load plugin commands on startup
         _pluginLoader.LoadPlugins();
         RefreshPluginCommands();
+        _toolPluginLoader = toolPluginLoader;
     }
 
     /// <summary>
@@ -241,11 +282,166 @@ public class CommandHandler : ICommandHandler
         return Task.FromResult(CommandResult.Fail($"Unknown model: {target}. Use /model to see available models."));
     }
 
-    private Task<CommandResult> HandleCompact(string[] args, ChatSession session)
+    private async Task<CommandResult> HandleCompress(string[] args, ChatSession session)
     {
-        session.CompactMode = !session.CompactMode;
+        if (_compressionService is null)
+        {
+            return CommandResult.Fail("Compression service not available.");
+        }
+
+        if (session.Messages.Count <= _options.KeepRecentMessages)
+        {
+            return CommandResult.Ok("Not enough messages to compress. Keep chatting!");
+        }
+
+        if (session.IsCompressing)
+        {
+            return CommandResult.Fail("Compression already in progress.");
+        }
+
+        session.IsCompressing = true;
+
+        try
+        {
+            AnsiConsole.MarkupLine("[dim]Compressing conversation history...[/]");
+
+            var result = await _compressionService.CompactAsync(
+                session.Messages,
+                _options.KeepRecentMessages,
+                session.CompressionStats.LastSummary);
+
+            if (!result.Success)
+            {
+                return CommandResult.Fail(result.Error ?? "Compression failed.");
+            }
+
+            if (result.MessagesSummarized == 0)
+            {
+                return CommandResult.Ok("No compression needed.");
+            }
+
+            // Replace old messages with summary
+            var summaryMessage = ChatMessage.User(
+                $"[Previous conversation summary]\n{result.Summary}",
+                result.TokensAfter);
+
+            // Keep only recent messages + summary
+            var keptMessages = session.Messages
+                .Skip(session.Messages.Count - _options.KeepRecentMessages)
+                .ToList();
+
+            session.Messages.Clear();
+            session.Messages.Add(summaryMessage);
+            foreach (var msg in keptMessages)
+            {
+                session.Messages.Add(msg);
+            }
+
+            // Update session stats
+            session.CompressionStats.Count++;
+            session.CompressionStats.TotalTokensSaved += result.TokensBefore - result.TokensAfter;
+            session.CompressionStats.LastCompressionTime = DateTime.Now;
+            session.CompressionStats.LastSummary = result.Summary;
+
+            var lines = new List<string>
+            {
+                "",
+                "[bold green]✓[/] Context compressed",
+                "",
+                $"  Before:     {result.TokensBefore:N0} tokens ({result.MessagesSummarized + result.MessagesKept} messages)",
+                $"  After:      {result.TokensAfter:N0} tokens ({result.MessagesKept + 1} messages)",
+                $"  Saved:      {result.TokensBefore - result.TokensAfter:N0} tokens",
+                "",
+                $"  Compressions this session: {session.CompressionStats.Count}",
+                ""
+            };
+
+            return CommandResult.OkWithMarkup(string.Join("\n", lines));
+        }
+        catch (Exception ex)
+        {
+            return CommandResult.Fail($"Compression failed: {ex.Message}");
+        }
+        finally
+        {
+            session.IsCompressing = false;
+        }
+    }
+
+    private Task<CommandResult> HandleAutoCompress(string[] args, ChatSession session)
+    {
+        session.AutoCompressionEnabled = !session.AutoCompressionEnabled;
         return Task.FromResult(CommandResult.Ok(
-            $"Compact mode: {(session.CompactMode ? "ON" : "OFF")} — thinking blocks will be {(session.CompactMode ? "hidden" : "shown")}."));
+            $"Auto-compression: {(session.AutoCompressionEnabled ? "ON" : "OFF")}"));
+    }
+
+    private Task<CommandResult> HandleRemember(string[] args, ChatSession session)
+    {
+        if (_memoryService is null)
+        {
+            return Task.FromResult(CommandResult.Fail("Memory service not available."));
+        }
+
+        if (args.Length == 0)
+        {
+            return Task.FromResult(CommandResult.Fail("Usage: /remember <text>\nExample: /remember I prefer minimal comments in code"));
+        }
+
+        var memory = string.Join(" ", args);
+
+        if (_memoryService.Remember(memory))
+        {
+            return Task.FromResult(CommandResult.OkWithMarkup($"\n[bold green]✓[/] Remembered: [dim]{Markup.Escape(memory)}[/]\n"));
+        }
+
+        return Task.FromResult(CommandResult.Fail("Failed to save memory."));
+    }
+
+    private Task<CommandResult> HandleMemory(string[] args, ChatSession session)
+    {
+        if (_memoryService is null)
+        {
+            return Task.FromResult(CommandResult.Fail("Memory service not available."));
+        }
+
+        // Handle /memory clear
+        if (args.Length > 0 && args[0].Equals("clear", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_memoryService.ClearMemories())
+            {
+                return Task.FromResult(CommandResult.Ok("All memories cleared."));
+            }
+            return Task.FromResult(CommandResult.Fail("Failed to clear memories."));
+        }
+
+        // Show current memories
+        var memories = _memoryService.GetMemories();
+
+        if (string.IsNullOrWhiteSpace(memories) || memories.Contains("Store your preferences"))
+        {
+            return Task.FromResult(CommandResult.OkWithMarkup("""
+
+                [dim]No memories saved yet.[/]
+
+                Use [bold]/remember <text>[/] to save something:
+                  [dim]/remember I prefer minimal comments in code[/]
+                  [dim]/remember Use British English spelling[/]
+
+                """));
+        }
+
+        var lines = new List<string>
+        {
+            "",
+            "[bold]Saved Memories[/]",
+            "",
+            $"[dim]{Markup.Escape(memories)}[/]",
+            "",
+            "[dim]Use /remember <text> to add more, or /memory clear to remove all.[/]",
+            ""
+        };
+
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 
     private Task<CommandResult> HandleHistory(string[] args, ChatSession session)
@@ -478,5 +674,42 @@ public class CommandHandler : ICommandHandler
     private Task<CommandResult> HandleExit(string[] args, ChatSession session)
     {
         return Task.FromResult(CommandResult.Exit("Goodbye! 👋"));
+    }
+
+    private Task<CommandResult> HandleTools(string[] args, ChatSession session)
+    {
+        var lines = new List<string>
+        {
+            "",
+            "[bold]Available Tools[/]",
+            "",
+            // Built-in tools would be listed here if you track them separately
+            "  [dim]Built-in tools:[/]",
+            "    • read_file — Read file contents",
+            //"    • write_file — Write to files",
+            //"    • run_shell — Execute shell commands",
+            //"    • search_files — Search for text patterns",
+            //"    • list_directory — List directory contents"
+        };
+
+        if (_toolPluginLoader is not null)
+        {
+            var plugins = _toolPluginLoader.Plugins;
+            if (plugins.Count > 0)
+            {
+                lines.Add("");
+                lines.Add($"  [dim]Plugin tools ({plugins.Count}):[/]");
+
+                foreach (var plugin in plugins)
+                {
+                    lines.Add($"    • {plugin.Name} — {plugin.Description} [dim]v{plugin.Version}[/]");
+                }
+            }
+        }
+
+        lines.Add("");
+        lines.Add("[dim]Tools are automatically available to the AI during conversations.[/]");
+
+        return Task.FromResult(CommandResult.OkWithMarkup(string.Join("\n", lines)));
     }
 }
