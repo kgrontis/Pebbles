@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable code analysis during build -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    
+    <!-- Enable nullable reference types by default -->
+    <Nullable>enable</Nullable>
+    
+    <!-- Enable XML documentation warnings -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1515</NoWarn>
+  </PropertyGroup>
+  
+  <!-- Coverage settings for test projects -->
+  <PropertyGroup Condition="$(MSBuildProjectName.Contains('Tests'))">
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildThisFileDirectory)TestResults/coverage.cobertura.xml</CoverletOutput>
+    <ExcludeByFile>**/Program.cs,**/*.g.cs,**/*.g.i.cs,**/obj/**/*</ExcludeByFile>
+    <!-- Test-specific warning suppressions -->
+    <!-- CA1707: Test method naming with underscores is standard xUnit convention -->
+    <!-- CS1591: Test code doesn't need XML documentation -->
+    <NoWarn>$(NoWarn);CA1707;CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

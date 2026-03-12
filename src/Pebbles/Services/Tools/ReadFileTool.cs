@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to read file contents.
 /// </summary>
-public sealed class ReadFileTool(IFileService fileService) : ITool
+internal sealed class ReadFileTool(IFileService fileService) : ITool
 {
     public string Name => "read_file";
 
@@ -71,7 +71,7 @@ public sealed class ReadFileTool(IFileService fileService) : ITool
             : new ToolExecutionResult { Success = false, Error = result.Error };
     }
 
-    private record ReadFileArgs
+    private sealed record ReadFileArgs
     {
         [JsonPropertyName("path")]
         public string Path { get; init; } = string.Empty;

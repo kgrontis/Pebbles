@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles chat-related commands: /clear, /history, /cost, /exit.
 /// </summary>
-public sealed class ChatCommands
+internal sealed class ChatCommands
 {
     public static CommandResult HandleClear(ChatSession session)
     {
@@ -23,8 +23,8 @@ public sealed class ChatCommands
         {
             var role = msg.Role == ChatRole.User ? "You" : "Pebbles";
             var preview = msg.Content.Length > 80
-                ? msg.Content[..80].Replace("\n", " ") + "..."
-                : msg.Content.Replace("\n", " ");
+                ? msg.Content[..80].Replace("\n", " ", StringComparison.InvariantCultureIgnoreCase) + "..."
+                : msg.Content.Replace("\n", " ", StringComparison.InvariantCultureIgnoreCase);
             lines.Add($"  [{msg.Timestamp:HH:mm:ss}] {role}: {preview}");
         }
 

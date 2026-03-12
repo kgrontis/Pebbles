@@ -3,11 +3,12 @@ namespace Pebbles.Services;
 using Pebbles.Configuration;
 using Pebbles.Models;
 using Spectre.Console;
+using System.Security;
 
 /// <summary>
 /// Service for managing context compression and memory extraction.
 /// </summary>
-public sealed class ContextManagementService(
+internal sealed class ContextManagementService(
     ICompressionService compressionService,
     IMemoryService memoryService,
     PebblesOptions options) : IContextManagementService
@@ -41,7 +42,7 @@ public sealed class ContextManagementService(
             var result = await compressionService.CompactAsync(
                 session.Messages,
                 options.KeepRecentMessages,
-                session.CompressionStats.LastSummary);
+                session.CompressionStats.LastSummary).ConfigureAwait(false);
 
             if (!result.Success || result.MessagesSummarized == 0)
             {
@@ -72,7 +73,7 @@ public sealed class ContextManagementService(
             AnsiConsole.MarkupLine($"[dim green]✓ Auto-compressed: {result.TokensBefore:N0} → {result.TokensAfter:N0} tokens[/]");
             AnsiConsole.MarkupLine("");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
         {
             AnsiConsole.MarkupLine($"[dim red]Auto-compression failed: {ex.Message}[/]");
         }
@@ -95,7 +96,7 @@ public sealed class ContextManagementService(
 
         try
         {
-            var extracted = await memoryService.ExtractMemoriesAsync(session.Messages);
+            var extracted = await memoryService.ExtractMemoriesAsync(session.Messages).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(extracted))
             {
@@ -103,7 +104,7 @@ public sealed class ContextManagementService(
                 AnsiConsole.MarkupLine("[dim]💡 Extracted new memories from conversation[/]");
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
         {
             // Silently fail - memory extraction is not critical
         }

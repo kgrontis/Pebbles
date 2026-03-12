@@ -1,5 +1,7 @@
 namespace Pebbles.Services;
 
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text;
 using Pebbles.Configuration;
 using Pebbles.Models;
@@ -7,7 +9,7 @@ using Pebbles.Models;
 /// <summary>
 /// Implementation of context compaction services.
 /// </summary>
-public class CompressionService : ICompressionService
+internal class CompressionService : ICompressionService
 {
     private readonly IAIProvider _aiProvider;
     private readonly ISystemPromptService _promptService;
@@ -40,7 +42,7 @@ public class CompressionService : ICompressionService
 
     /// <inheritdoc />
     public async Task<CompressionResult> CompactAsync(
-        List<ChatMessage> messages,
+        Collection<ChatMessage> messages,
         int keepRecentCount = 6,
         string? previousSummary = null,
         CancellationToken cancellationToken = default)
@@ -66,7 +68,7 @@ public class CompressionService : ICompressionService
             var summarizationInput = BuildSummarizationInput(conversationText);
 
             // Call the AI to generate the summary
-            var summary = await GenerateSummaryAsync(summarizationInput, compressionPrompt, cancellationToken);
+            var summary = await GenerateSummaryAsync(summarizationInput, compressionPrompt, cancellationToken).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(summary))
             {
@@ -86,7 +88,7 @@ public class CompressionService : ICompressionService
                 kept: keepRecentCount
             );
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException || ex is OverflowException)
         {
             return CompressionResult.Failed($"Compaction failed: {ex.Message}");
         }
@@ -118,11 +120,11 @@ public class CompressionService : ICompressionService
                 _ => "Unknown"
             };
 
-            sb.AppendLine($"[{role}]: {msg.Content}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[{role}]: {msg.Content}");
 
             if (msg.Thinking is not null && !string.IsNullOrEmpty(msg.Thinking.Content))
             {
-                sb.AppendLine($"[Thinking]: {msg.Thinking.Content}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"[Thinking]: {msg.Thinking.Content}");
             }
         }
         sb.AppendLine("</conversation>");
@@ -148,7 +150,7 @@ public class CompressionService : ICompressionService
     {
         var responseBuilder = new StringBuilder();
 
-        await foreach (var chunk in _aiProvider.StreamResponseAsync(input, cancellationToken))
+        await foreach (var chunk in _aiProvider.StreamResponseAsync(input, cancellationToken).ConfigureAwait(false))
         {
             responseBuilder.Append(chunk);
         }

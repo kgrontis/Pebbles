@@ -3,6 +3,8 @@ namespace Pebbles.Tests.Services;
 using Pebbles.Services;
 using Polly;
 
+#pragma warning disable CA2007 // xUnit recommends not using ConfigureAwait in tests
+
 public class RetryPoliciesTests
 {
     [Fact]

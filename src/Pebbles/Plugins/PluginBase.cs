@@ -3,7 +3,7 @@ namespace Pebbles.Plugins;
 /// <summary>
 /// Base class for C# plugins. Inherit from this class to create a plugin.
 /// </summary>
-public abstract class PluginBase
+internal abstract class PluginBase
 {
     /// <summary>
     /// Plugin identifier (e.g., "my-tools").
@@ -70,7 +70,7 @@ public abstract class PluginBase
 
             return string.IsNullOrEmpty(error) ? output.Trim() : $"Error: {error.Trim()}\n{output.Trim()}";
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not System.ComponentModel.Win32Exception) // Don't catch Win32Exception which can occur on process kill
         {
             return $"Error: {ex.Message}";
         }
@@ -89,7 +89,7 @@ public abstract class PluginBase
 
             return File.ReadAllText(fullPath);
         }
-        catch
+        catch (Exception ex) when (ex is not System.ComponentModel.Win32Exception)
         {
             return null;
         }
@@ -111,7 +111,7 @@ public abstract class PluginBase
             File.WriteAllText(fullPath, content);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is not System.ComponentModel.Win32Exception)
         {
             return false;
         }
@@ -133,13 +133,12 @@ public abstract class PluginBase
             if (!Directory.Exists(fullPath))
                 return null;
 
-            return Directory.GetFileSystemEntries(fullPath)
+            return [.. Directory.GetFileSystemEntries(fullPath)
                 .Select(Path.GetFileName)
                 .Where(n => n is not null)
-                .Cast<string>()
-                .ToArray();
+                .Cast<string>()];
         }
-        catch
+        catch (Exception ex) when (ex is not System.ComponentModel.Win32Exception)
         {
             return null;
         }

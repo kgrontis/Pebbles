@@ -7,10 +7,9 @@ using Pebbles.Services;
 /// <summary>
 /// Handles user input with history, command autocomplete, and file picker.
 /// </summary>
-public class InputHandler : IInputHandler
+internal class InputHandler(ICommandHandler commandHandler, IFileService fileService) : IInputHandler
 {
-    private readonly ICommandHandler _commandHandler;
-    private readonly IFileService _fileService;
+    private static readonly System.Buffers.SearchValues<char> s_myChars = System.Buffers.SearchValues.Create("/\\");
     private readonly List<string> _inputHistory = [];
     private int _historyIndex = -1;
     private int _inputStartCol;
@@ -18,12 +17,6 @@ public class InputHandler : IInputHandler
     private int _borderWidth;
     private const string Placeholder = "Type a message, / for commands, @ for files";
     private const string BorderColor = "dodgerblue2";
-
-    public InputHandler(ICommandHandler commandHandler, IFileService fileService)
-    {
-        _commandHandler = commandHandler;
-        _fileService = fileService;
-    }
 
     public string? ReadInput(ChatSession session)
     {
@@ -77,7 +70,7 @@ public class InputHandler : IInputHandler
                 // If suggestions are showing, accept the selected one
                 if (showingSuggestions && suggestions.Count > 0 && selectedSuggestion >= 0)
                 {
-                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType, filePickerPath);
+                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType);
                     RenderLine(buffer, cursorPos);
 
                     // If we selected a directory, update the file picker
@@ -85,7 +78,7 @@ public class InputHandler : IInputHandler
                     {
                         var path = suggestions[selectedSuggestion].InsertText;
                         filePickerPath = path.TrimEnd('/');
-                        UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
+                        UpdateFileSuggestions(ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
                     }
                     else
                     {
@@ -108,7 +101,7 @@ public class InputHandler : IInputHandler
                 Console.SetCursorPosition(0, _inputRow);
                 Console.Write(new string(' ', Console.WindowWidth));
 
-                var result = new string(buffer.ToArray());
+                var result = new string([.. buffer]);
                 if (!string.IsNullOrWhiteSpace(result))
                 {
                     _inputHistory.Add(result);
@@ -122,7 +115,7 @@ public class InputHandler : IInputHandler
             {
                 if (showingSuggestions && suggestions.Count > 0 && selectedSuggestion >= 0)
                 {
-                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType, filePickerPath);
+                    AcceptSuggestion(buffer, suggestions[selectedSuggestion], ref cursorPos, autocompleteType);
                     RenderLine(buffer, cursorPos);
 
                     // If we selected a directory, update the file picker
@@ -130,7 +123,7 @@ public class InputHandler : IInputHandler
                     {
                         var path = suggestions[selectedSuggestion].InsertText;
                         filePickerPath = path.TrimEnd('/');
-                        UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
+                        UpdateFileSuggestions(ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
                     }
                     else
                     {
@@ -304,7 +297,7 @@ public class InputHandler : IInputHandler
         }
     }
 
-    private void AcceptSuggestion(List<char> buffer, ISuggestion suggestion, ref int cursorPos, AutocompleteType type, string currentPath)
+    private static void AcceptSuggestion(List<char> buffer, ISuggestion suggestion, ref int cursorPos, AutocompleteType type)
     {
         // Find the start of the autocomplete trigger
         int startPos = -1;
@@ -345,7 +338,7 @@ public class InputHandler : IInputHandler
         ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered,
         ref AutocompleteType autocompleteType, ref string filePickerPath)
     {
-        var text = new string(buffer.ToArray());
+        var text = new string([.. buffer]);
         var cursor = buffer.Count;
 
         // Detect autocomplete type based on cursor position
@@ -354,11 +347,11 @@ public class InputHandler : IInputHandler
             autocompleteType = AutocompleteType.Command;
             UpdateCommandSuggestions(text, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered);
         }
-        else if (IsInFileReference(buffer, cursor, out var atPos, out var currentPath))
+        else if (IsInFileReference(buffer, cursor, out _, out var currentPath))
         {
             autocompleteType = AutocompleteType.File;
             filePickerPath = currentPath;
-            UpdateFileSuggestions(buffer, ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
+            UpdateFileSuggestions(ref suggestions, ref showingSuggestions, ref selectedSuggestion, ref suggestionLinesRendered, ref filePickerPath);
         }
         else
         {
@@ -375,7 +368,7 @@ public class InputHandler : IInputHandler
         }
     }
 
-    private bool IsInFileReference(List<char> buffer, int cursor, out int atPos, out string currentPath)
+    private static bool IsInFileReference(List<char> buffer, int cursor, out int atPos, out string currentPath)
     {
         atPos = -1;
         currentPath = "";
@@ -389,7 +382,7 @@ public class InputHandler : IInputHandler
                 // Extract path after @
                 if (cursor > i + 1)
                 {
-                    currentPath = new string(buffer.GetRange(i + 1, cursor - i - 1).ToArray());
+                    currentPath = new string([.. buffer.GetRange(i + 1, cursor - i - 1)]);
                 }
                 return true;
             }
@@ -403,7 +396,7 @@ public class InputHandler : IInputHandler
     private void UpdateCommandSuggestions(string text, ref List<ISuggestion> suggestions,
         ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered)
     {
-        var matchingCommands = _commandHandler.Commands
+        var matchingCommands = commandHandler.Commands
             .Where(c => c.Name.StartsWith(text, StringComparison.OrdinalIgnoreCase))
             .Select(c => (ISuggestion)new CommandSuggestion(c))
             .ToList();
@@ -425,8 +418,7 @@ public class InputHandler : IInputHandler
         }
     }
 
-    private void UpdateFileSuggestions(List<char> buffer, ref List<ISuggestion> suggestions,
-        ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered, ref string currentPath)
+    private void UpdateFileSuggestions(ref List<ISuggestion> suggestions, ref bool showingSuggestions, ref int selectedSuggestion, ref int suggestionLinesRendered, ref string currentPath)
     {
         // Parse the current path - could be a directory or partial filename
         var dir = "";
@@ -434,7 +426,7 @@ public class InputHandler : IInputHandler
 
         if (!string.IsNullOrEmpty(currentPath))
         {
-            var lastSlash = currentPath.LastIndexOfAny(new[] { '/', '\\' });
+            var lastSlash = currentPath.AsSpan().LastIndexOfAny(s_myChars);
             if (lastSlash >= 0)
             {
                 dir = currentPath[..lastSlash];
@@ -446,8 +438,8 @@ public class InputHandler : IInputHandler
             }
         }
 
-        var items = _fileService.ListDirectory(string.IsNullOrEmpty(dir) ? null : dir, filter);
-        suggestions = items.Select(i => (ISuggestion)new FileSuggestion(i)).ToList();
+        var items = fileService.ListDirectory(string.IsNullOrEmpty(dir) ? null : dir, filter);
+        suggestions = [.. items.Select(i => (ISuggestion)new FileSuggestion(i))];
 
         if (suggestions.Count > 0)
         {
@@ -482,9 +474,9 @@ public class InputHandler : IInputHandler
         }
         else
         {
-            var text = new string(buffer.ToArray());
+            var text = new string([.. buffer]);
             // Highlight @file references
-            if (text.Contains('@'))
+            if (text.Contains('@', StringComparison.InvariantCultureIgnoreCase))
             {
                 RenderWithFileHighlights(text);
             }
@@ -496,7 +488,7 @@ public class InputHandler : IInputHandler
         SetCursor(cursorPos);
     }
 
-    private void RenderWithFileHighlights(string text)
+    private static void RenderWithFileHighlights(string text)
     {
         var i = 0;
         while (i < text.Length)

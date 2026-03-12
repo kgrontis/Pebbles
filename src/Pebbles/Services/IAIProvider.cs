@@ -1,11 +1,12 @@
 namespace Pebbles.Services;
 
 using Pebbles.Models;
+using System.Collections.ObjectModel;
 
 /// <summary>
 /// Provides AI responses with streaming support.
 /// </summary>
-public interface IAIProvider
+internal interface IAIProvider
 {
     /// <summary>
     /// Gets a response for the given user input (non-streaming).

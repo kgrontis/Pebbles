@@ -3,7 +3,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interactive model picker for selecting AI models.
 /// </summary>
-public interface IModelPicker
+internal interface IModelPicker
 {
     /// <summary>
     /// Shows an interactive model picker and returns the selected model.
@@ -11,24 +11,24 @@ public interface IModelPicker
     /// <param name="models">Available models</param>
     /// <param name="currentModel">Currently selected model</param>
     /// <returns>Selected model, or null if cancelled</returns>
-    string? PickModel(string[] models, string currentModel);
+    string? PickModel(IReadOnlyList<string> models, string currentModel);
 }
 
 /// <summary>
 /// Console-based interactive model picker.
 /// </summary>
-public class ModelPicker : IModelPicker
+internal class ModelPicker : IModelPicker
 {
-    public string? PickModel(string[] models, string currentModel)
+    public string? PickModel(IReadOnlyList<string> models, string currentModel)
     {
-        if (models.Length == 0)
+        if (models.Count == 0)
             return null;
 
-        var selectedIndex = Array.FindIndex(models, m => m == currentModel);
+        var selectedIndex = FindModelIndex(models, currentModel);
         if (selectedIndex < 0) selectedIndex = 0;
 
         var startRow = Console.CursorTop;
-        var maxDisplay = Math.Min(10, models.Length);
+        var maxDisplay = Math.Min(10, models.Count);
         var scrollOffset = 0;
 
         Render(models, currentModel, selectedIndex, scrollOffset, startRow, maxDisplay);
@@ -58,7 +58,7 @@ public class ModelPicker : IModelPicker
                     break;
 
                 case ConsoleKey.DownArrow:
-                    if (selectedIndex < models.Length - 1)
+                    if (selectedIndex < models.Count - 1)
                     {
                         selectedIndex++;
                         if (selectedIndex >= scrollOffset + maxDisplay)
@@ -70,15 +70,25 @@ public class ModelPicker : IModelPicker
         }
     }
 
-    private void Render(string[] models, string currentModel, int selected, int scrollOffset, int startRow, int maxDisplay)
+    private static int FindModelIndex(IReadOnlyList<string> models, string target)
+    {
+        for (var i = 0; i < models.Count; i++)
+        {
+            if (models[i] == target)
+                return i;
+        }
+        return -1;
+    }
+
+    private static void Render(IReadOnlyList<string> models, string currentModel, int selected, int scrollOffset, int startRow, int maxDisplay)
     {
         var nameW = Math.Max(24, models.Max(m => m.Length));
         var innerW = 2 + nameW + 2;
 
         // Header
         Console.SetCursorPosition(0, startRow);
-        var scrollText = models.Length > maxDisplay 
-            ? $" ({scrollOffset + 1}-{Math.Min(scrollOffset + maxDisplay, models.Length)}/{models.Length})" 
+        var scrollText = models.Count > maxDisplay
+            ? $" ({scrollOffset + 1}-{Math.Min(scrollOffset + maxDisplay, models.Count)}/{models.Count})"
             : "";
         var dashCount = Math.Max(1, innerW - 6 - scrollText.Length);
         Spectre.Console.AnsiConsole.Markup($"[dim grey]  Models{scrollText} {new string('─', dashCount)}[/]");
@@ -87,7 +97,7 @@ public class ModelPicker : IModelPicker
         for (var i = 0; i < maxDisplay; i++)
         {
             var idx = scrollOffset + i;
-            if (idx >= models.Length) break;
+            if (idx >= models.Count) break;
 
             var model = models[idx];
             var isCurrent = model == currentModel;
@@ -117,7 +127,7 @@ public class ModelPicker : IModelPicker
         Spectre.Console.AnsiConsole.Markup("[dim]  ↑↓ Select • Enter Confirm • Esc Cancel[/]");
     }
 
-    private void ClearPicker(int startRow, int lineCount)
+    private static void ClearPicker(int startRow, int lineCount)
     {
         for (var i = 0; i <= lineCount + 2; i++)
         {

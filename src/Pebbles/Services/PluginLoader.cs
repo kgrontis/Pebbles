@@ -2,11 +2,12 @@ namespace Pebbles.Services;
 
 using Pebbles.Models;
 using Pebbles.Plugins;
+using System.Security;
 
 /// <summary>
 /// Discovers and loads C# plugins from global and project directories.
 /// </summary>
-public sealed class PluginLoader : IPluginLoader
+internal sealed class PluginLoader : IPluginLoader
 {
     private readonly RoslynPluginService _roslynService;
     private readonly string _globalPluginsPath;
@@ -49,7 +50,7 @@ public sealed class PluginLoader : IPluginLoader
         // Load each script
         foreach (var scriptPath in scriptPaths.Distinct())
         {
-            var (plugin, error) = _roslynService.LoadPlugin(scriptPath);
+            var (plugin, error) = RoslynPluginService.LoadPlugin(scriptPath);
 
             if (plugin is not null)
             {
@@ -88,7 +89,7 @@ public sealed class PluginLoader : IPluginLoader
     /// <summary>
     /// Create a command handler that invokes the C# plugin method.
     /// </summary>
-    private static Func<string[], ChatSession, CommandResult> CreateCommandHandler(PluginCommand cmd)
+    private static Func<string[], ChatSession, Task<CommandResult>> CreateCommandHandler(PluginCommand cmd)
     {
         return (args, session) =>
         {
@@ -106,11 +107,11 @@ public sealed class PluginLoader : IPluginLoader
 
                 // Return raw output so it appears on its own line without the ● prefix
                 // Allow markup so plugins can use Spectre formatting
-                return CommandResult.Raw(result, allowMarkup: true);
+                return Task.FromResult(CommandResult.Raw(result, allowMarkup: true));
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
             {
-                return CommandResult.Fail($"Error: {ex.Message}");
+                return Task.FromResult(CommandResult.Fail($"Error: {ex.Message}"));
             }
         };
     }

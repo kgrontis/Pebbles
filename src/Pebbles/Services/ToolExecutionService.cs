@@ -7,7 +7,7 @@ using System.Text.Json;
 /// <summary>
 /// Service for executing tool calls from AI responses.
 /// </summary>
-public sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry toolRegistry) : IToolExecutionService
+internal sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry toolRegistry) : IToolExecutionService
 {
 
     /// <inheritdoc />
@@ -29,7 +29,7 @@ public sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry t
             var response = await aiProvider.GetResponseWithToolsAsync(
                 input,
                 toolDefinitions,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
             thinking = aiProvider.GetLastThinking();
             thinkingDuration = aiProvider.GetLastThinkingDuration();
@@ -41,7 +41,7 @@ public sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry t
                 break;
             }
 
-            var toolResults = await ExecuteToolCallsAsync(response.ToolCalls, cancellationToken);
+            var toolResults = await ExecuteToolCallsAsync(response.ToolCalls, cancellationToken).ConfigureAwait(false);
 
             input = $"Tool results: {JsonSerializer.Serialize(toolResults)}";
         }
@@ -66,7 +66,7 @@ public sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry t
             var result = await toolRegistry.ExecuteToolAsync(
                 toolCall.Function.Name,
                 toolCall.Function.Arguments,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
             results.Add(new ToolResult
             {

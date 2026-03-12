@@ -7,9 +7,9 @@ using Pebbles.Services;
 /// <summary>
 /// Handles all chat UI rendering using Spectre.Console.
 /// </summary>
-public class ChatRenderer : IChatRenderer
+internal partial class ChatRenderer : IChatRenderer
 {
-    private bool _inTable = false;
+    private bool _inTable;
 
     public void RenderWelcome(ChatSession session)
     {
@@ -112,7 +112,7 @@ public class ChatRenderer : IChatRenderer
         AnsiConsole.Markup("[dim] ...[/]");
         AnsiConsole.WriteLine();
 
-        await foreach (var chunk in provider.StreamThinkingAsync(response))
+        await foreach (var chunk in provider.StreamThinkingAsync(response).ConfigureAwait(false))
         {
             thinkingContent += chunk;
         }
@@ -142,7 +142,7 @@ public class ChatRenderer : IChatRenderer
         var inTable = false;
         var currentLine = "";
 
-        await foreach (var chunk in provider.StreamContentAsync(response))
+        await foreach (var chunk in provider.StreamContentAsync(response).ConfigureAwait(false))
         {
             foreach (var c in chunk)
             {
@@ -164,9 +164,9 @@ public class ChatRenderer : IChatRenderer
         AnsiConsole.WriteLine();
     }
 
-    private void RenderMarkdownLine(string line, ref bool inCodeBlock, ref bool inTable)
+    private static void RenderMarkdownLine(string line, ref bool inCodeBlock, ref bool inTable)
     {
-        if (line.TrimStart().StartsWith("```"))
+        if (line.TrimStart().StartsWith("```", StringComparison.InvariantCultureIgnoreCase))
         {
             inCodeBlock = !inCodeBlock;
             if (inCodeBlock)
@@ -190,7 +190,7 @@ public class ChatRenderer : IChatRenderer
 
         if (line.TrimStart().StartsWith('|'))
         {
-            if (line.TrimStart().StartsWith("|--") || line.TrimStart().StartsWith("| --") || line.TrimStart().StartsWith("|---"))
+            if (line.TrimStart().StartsWith("|--", StringComparison.InvariantCultureIgnoreCase) || line.TrimStart().StartsWith("| --", StringComparison.InvariantCultureIgnoreCase) || line.TrimStart().StartsWith("|---", StringComparison.InvariantCultureIgnoreCase))
             {
                 AnsiConsole.Markup($"  [dim]{Markup.Escape(line)}[/]");
                 return;
@@ -203,28 +203,28 @@ public class ChatRenderer : IChatRenderer
 
         if (inTable && !line.TrimStart().StartsWith('|')) inTable = false;
 
-        if (line.TrimStart().StartsWith("# "))
+        if (line.TrimStart().StartsWith("# ", StringComparison.InvariantCultureIgnoreCase))
         {
             AnsiConsole.Markup($"  [bold underline mediumpurple1]{Markup.Escape(line.TrimStart()[2..])}[/]");
             return;
         }
-        if (line.TrimStart().StartsWith("## "))
+        if (line.TrimStart().StartsWith("## ", StringComparison.InvariantCultureIgnoreCase))
         {
             AnsiConsole.Markup($"  [bold mediumspringgreen]{Markup.Escape(line.TrimStart()[3..])}[/]");
             return;
         }
-        if (line.TrimStart().StartsWith("### "))
+        if (line.TrimStart().StartsWith("### ", StringComparison.InvariantCultureIgnoreCase))
         {
             AnsiConsole.Markup($"  [bold yellow]{Markup.Escape(line.TrimStart()[4..])}[/]");
             return;
         }
-        if (line.TrimStart().StartsWith("> "))
+        if (line.TrimStart().StartsWith("> ", StringComparison.InvariantCultureIgnoreCase))
         {
             var text = ApplyInlineFormatting(line.TrimStart()[2..]);
             AnsiConsole.Markup($"  [yellow]│[/] [italic]{text}[/]");
             return;
         }
-        if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
+        if (line.TrimStart().StartsWith("- ", StringComparison.InvariantCultureIgnoreCase) || line.TrimStart().StartsWith("* ", StringComparison.InvariantCultureIgnoreCase))
         {
             var text = ApplyInlineFormatting(line.TrimStart()[2..]);
             AnsiConsole.Markup($"  [mediumspringgreen]●[/] {text}");
@@ -244,9 +244,9 @@ public class ChatRenderer : IChatRenderer
 
     private static string ApplyInlineFormatting(string text)
     {
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"`([^`]+)`", "[bold grey93 on grey23]$1[/]");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\*\*([^*]+)\*\*", "[bold]$1[/]");
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"(?<!\*)\*([^*]+)\*(?!\*)", "[italic]$1[/]");
+        text = InlineCodeRegex().Replace(text, "[bold grey93 on grey23]$1[/]");
+        text = BoldRegex().Replace(text, "[bold]$1[/]");
+        text = ItalicRegex().Replace(text, "[italic]$1[/]");
         return text;
     }
 
@@ -314,13 +314,13 @@ public class ChatRenderer : IChatRenderer
         var inThinkingBlock = false;
         var thinkingStarted = false;
 
-        await foreach (var token in provider.StreamResponseAsync(userInput))
+        await foreach (var token in provider.StreamResponseAsync(userInput).ConfigureAwait(false))
         {
             tokenCount++;
             if (string.IsNullOrEmpty(token)) continue;
 
             // Check if this is thinking content
-            if (token.StartsWith("[THINKING]"))
+            if (token.StartsWith("[THINKING]", StringComparison.InvariantCultureIgnoreCase))
             {
                 var thinkingToken = token[10..]; // Remove [THINKING] prefix
                 thinking.Append(thinkingToken);
@@ -374,7 +374,7 @@ public class ChatRenderer : IChatRenderer
                     var lineText = currentLine.ToString();
                     currentLine.Clear();
                     
-                    if (lineText.TrimStart().StartsWith("```"))
+                    if (lineText.TrimStart().StartsWith("```", StringComparison.InvariantCultureIgnoreCase))
                     {
                         inCodeBlock = !inCodeBlock;
                         if (inCodeBlock)
@@ -442,18 +442,25 @@ public class ChatRenderer : IChatRenderer
     private static string FormatMarkdownLine(string line)
     {
         var indent = "  ";
-        if (line.TrimStart().StartsWith("# "))
+        if (line.TrimStart().StartsWith("# ", StringComparison.InvariantCultureIgnoreCase))
             return $"{indent}[bold underline mediumpurple1]{Markup.Escape(line.TrimStart()[2..])}[/]";
-        if (line.TrimStart().StartsWith("## "))
+        if (line.TrimStart().StartsWith("## ", StringComparison.InvariantCultureIgnoreCase))
             return $"{indent}[bold mediumspringgreen]{Markup.Escape(line.TrimStart()[3..])}[/]";
-        if (line.TrimStart().StartsWith("### "))
+        if (line.TrimStart().StartsWith("### ", StringComparison.InvariantCultureIgnoreCase))
             return $"{indent}[bold yellow]{Markup.Escape(line.TrimStart()[4..])}[/]";
-        if (line.TrimStart().StartsWith("> "))
+        if (line.TrimStart().StartsWith("> ", StringComparison.InvariantCultureIgnoreCase))
             return $"{indent}[yellow]│[/] [italic]{ApplyInlineFormatting(line.TrimStart()[2..])}[/]";
-        if (line.TrimStart().StartsWith("- ") || line.TrimStart().StartsWith("* "))
+        if (line.TrimStart().StartsWith("- ", StringComparison.InvariantCultureIgnoreCase) || line.TrimStart().StartsWith("* ", StringComparison.InvariantCultureIgnoreCase))
             return $"{indent}[mediumspringgreen]●[/] {ApplyInlineFormatting(line.TrimStart()[2..])}";
         if (line.TrimStart().Length > 2 && char.IsDigit(line.TrimStart()[0]) && line.TrimStart()[1] == '.')
             return $"{indent}[mediumspringgreen]{line.TrimStart()[0]}.[/] {ApplyInlineFormatting(line.TrimStart()[3..])}";
         return $"{indent}{ApplyInlineFormatting(Markup.Escape(line))}";
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"`([^`]+)`")]
+    private static partial System.Text.RegularExpressions.Regex InlineCodeRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"\*\*([^*]+)\*\*")]
+    private static partial System.Text.RegularExpressions.Regex BoldRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<!\*)\*([^*]+)\*(?!\*)")]
+    private static partial System.Text.RegularExpressions.Regex ItalicRegex();
 }

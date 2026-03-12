@@ -6,7 +6,7 @@ using Pebbles.Services;
 /// <summary>
 /// Handles user input with history and autocomplete.
 /// </summary>
-public interface IInputHandler
+internal interface IInputHandler
 {
     /// <summary>
     /// Reads user input, returns null to exit.
@@ -17,7 +17,7 @@ public interface IInputHandler
 /// <summary>
 /// Suggestion item for autocomplete.
 /// </summary>
-public interface ISuggestion
+internal interface ISuggestion
 {
     string DisplayText { get; }
     string InsertText { get; }
@@ -28,29 +28,21 @@ public interface ISuggestion
 /// <summary>
 /// Command suggestion wrapper.
 /// </summary>
-public class CommandSuggestion : ISuggestion
+internal class CommandSuggestion(SlashCommand command) : ISuggestion
 {
-    private readonly SlashCommand _command;
-
-    public CommandSuggestion(SlashCommand command) => _command = command;
-
-    public string DisplayText => _command.Name;
-    public string InsertText => _command.Name;
-    public string Description => _command.Description;
+    public string DisplayText => command.Name;
+    public string InsertText => command.Name;
+    public string Description => command.Description;
     public bool IsDirectory => false;
 }
 
 /// <summary>
 /// File/folder suggestion wrapper.
 /// </summary>
-public class FileSuggestion : ISuggestion
+internal class FileSuggestion(FileItem item) : ISuggestion
 {
-    private readonly FileItem _item;
-
-    public FileSuggestion(FileItem item) => _item = item;
-
-    public string DisplayText => _item.IsDirectory ? $"{_item.Name}/" : _item.Name;
-    public string InsertText => _item.Path + (_item.IsDirectory ? "/" : "");
-    public string Description => _item.IsDirectory ? "folder" : _item.Extension;
-    public bool IsDirectory => _item.IsDirectory;
+    public string DisplayText => item.IsDirectory ? $"{item.Name}/" : item.Name;
+    public string InsertText => item.Path + (item.IsDirectory ? "/" : "");
+    public string Description => item.IsDirectory ? "folder" : item.Extension;
+    public bool IsDirectory => item.IsDirectory;
 }

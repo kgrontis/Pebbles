@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Discovers and loads tool plugins from global and project directories.
 /// </summary>
-public sealed class ToolPluginLoader : IToolPluginLoader
+internal sealed class ToolPluginLoader : IToolPluginLoader
 {
     private readonly RoslynPluginService _roslynService;
     private readonly string _globalPluginsPath;
@@ -48,7 +48,7 @@ public sealed class ToolPluginLoader : IToolPluginLoader
         // Load each script
         foreach (var scriptPath in scriptPaths.Distinct())
         {
-            var (plugin, error) = _roslynService.LoadToolPlugin(scriptPath);
+            var (plugin, error) = RoslynPluginService.LoadToolPlugin(scriptPath);
 
             if (plugin is not null)
             {
@@ -79,24 +79,17 @@ public sealed class ToolPluginLoader : IToolPluginLoader
 /// <summary>
 /// Adapter that wraps a tool plugin to implement ITool.
 /// </summary>
-internal sealed class ToolPluginAdapter : ITool
+internal sealed class ToolPluginAdapter(LoadedToolPlugin plugin) : ITool
 {
-    private readonly LoadedToolPlugin _plugin;
+    public string Name => plugin.Instance?.Name ?? plugin.Name;
 
-    public ToolPluginAdapter(LoadedToolPlugin plugin)
-    {
-        _plugin = plugin;
-    }
+    public string Description => plugin.Instance?.Description ?? string.Empty;
 
-    public string Name => _plugin.Instance?.Name ?? _plugin.Name;
-
-    public string Description => _plugin.Instance?.Description ?? string.Empty;
-
-    public ToolDefinition GetDefinition() => _plugin.Instance?.GetDefinition() ?? new ToolDefinition();
+    public ToolDefinition GetDefinition() => plugin.Instance?.GetDefinition() ?? new ToolDefinition();
 
     public async Task<ToolExecutionResult> ExecuteAsync(string arguments, CancellationToken cancellationToken = default)
     {
-        if (_plugin.Instance is null)
+        if (plugin.Instance is null)
         {
             return new ToolExecutionResult
             {
@@ -107,9 +100,9 @@ internal sealed class ToolPluginAdapter : ITool
 
         try
         {
-            return await _plugin.Instance.ExecuteAsync(arguments, cancellationToken);
+            return await plugin.Instance.ExecuteAsync(arguments, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {

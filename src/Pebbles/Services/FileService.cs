@@ -1,12 +1,14 @@
 namespace Pebbles.Services;
 
+using System.Globalization;
+using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 
 /// <summary>
 /// Implementation of file operations for including files in AI context.
 /// </summary>
-public partial class FileService : IFileService
+internal partial class FileService : IFileService
 {
     private static readonly Regex FileReferenceRegex = GetFileReferenceRegex();
 
@@ -84,7 +86,7 @@ public partial class FileService : IFileService
                 .OrderBy(i => !i.IsDirectory)
                 .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)];
         }
-        catch
+        catch(ArgumentException)
         {
             return items;
         }
@@ -92,7 +94,7 @@ public partial class FileService : IFileService
 
     private string GetRelativePath(string absolutePath)
     {
-        if (absolutePath.StartsWith(_workingDirectory))
+        if (absolutePath.StartsWith(_workingDirectory, StringComparison.OrdinalIgnoreCase))
         {
             var relative = absolutePath[_workingDirectory.Length..];
             return relative.TrimStart(Path.DirectorySeparatorChar, '/');
@@ -172,7 +174,7 @@ public partial class FileService : IFileService
             }
 
             var fileInfo = new FileInfo(absolutePath);
-            var ext = Path.GetExtension(absolutePath).ToLowerInvariant();
+            var ext = Path.GetExtension(absolutePath).ToUpperInvariant();
 
             // Check if it's an image file
             if (IsImageFile(ext))
@@ -227,7 +229,8 @@ public partial class FileService : IFileService
                 Error = $"Access denied: {path}"
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+         || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return new FileContent
             {
@@ -242,19 +245,19 @@ public partial class FileService : IFileService
 
     private static bool IsImageFile(string extension)
     {
-        return extension is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg";
+        return extension is ".PNG" or ".JPG" or ".JPEG" or ".GIF" or ".WEBP" or ".BMP" or ".SVG";
     }
 
     private static string GetMimeType(string extension)
     {
-        return extension.ToLowerInvariant() switch
+        return extension.ToUpperInvariant() switch
         {
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".bmp" => "image/bmp",
-            ".svg" => "image/svg+xml",
+            ".PNG" => "image/png",
+            ".JPG" or ".JPEG" => "image/jpeg",
+            ".GIF" => "image/gif",
+            ".WEBP" => "image/webp",
+            ".BMP" => "image/bmp",
+            ".SVG" => "image/svg+xml",
             _ => "application/octet-stream"
         };
     }
@@ -281,7 +284,8 @@ public partial class FileService : IFileService
             _loadedFiles[absolutePath] = fileContent;
             return fileContent;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+         || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return new FileContent
             {
@@ -336,7 +340,8 @@ public partial class FileService : IFileService
             _loadedFiles[absolutePath] = fileContent;
             return fileContent;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+         || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return new FileContent
             {
@@ -380,7 +385,8 @@ public partial class FileService : IFileService
                 Error = $"Access denied: {path}"
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+         || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return new FileContent
             {
@@ -406,7 +412,7 @@ public partial class FileService : IFileService
         var dirName = dirInfo.Name;
 
         // Add the directory name
-        sb.AppendLine($"{indent}{(isLast ? "└───" : "├───")}{dirName}/");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"{indent}{(isLast ? "└───" : "├───")}{dirName}/");
 
         try
         {
@@ -429,7 +435,7 @@ public partial class FileService : IFileService
                 }
                 else if (entry is FileInfo file)
                 {
-                    sb.AppendLine($"{newIndent}{(entryIsLast ? "└───" : "├───")}{file.Name}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"{newIndent}{(entryIsLast ? "└───" : "├───")}{file.Name}");
                 }
             }
         }
@@ -462,12 +468,12 @@ public partial class FileService : IFileService
 
         foreach (var (path, content) in _loadedFiles)
         {
-            sb.AppendLine($"### `{path}`");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"### `{path}`");
 
             if (!content.Success)
             {
                 // Include error files with their error message
-                sb.AppendLine($"**Error:** {content.Error}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"**Error:** {content.Error}");
                 sb.AppendLine();
                 continue;
             }
@@ -475,7 +481,7 @@ public partial class FileService : IFileService
             // Handle image files
             if (content.ContentType == FileContentType.Image)
             {
-                sb.AppendLine($"**Image:** {content.MimeType} ({content.Size / 1024}KB)");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"**Image:** {content.MimeType} ({content.Size / 1024}KB)");
                 sb.AppendLine("```");
                 sb.AppendLine(content.Content); // base64 encoded
                 sb.AppendLine("```");
@@ -501,11 +507,11 @@ public partial class FileService : IFileService
             // Add truncation notice if applicable
             if (content.IsTruncated)
             {
-                sb.AppendLine($"Showing lines {content.LineStart}-{content.LineEnd} of {content.TotalLines} total lines.");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Showing lines {content.LineStart}-{content.LineEnd} of {content.TotalLines} total lines.");
                 sb.AppendLine("---");
             }
 
-            sb.AppendLine($"```{lang}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"```{lang}");
             sb.AppendLine(content.Content);
             sb.AppendLine("```");
             sb.AppendLine();
@@ -564,7 +570,8 @@ public partial class FileService : IFileService
 
             return false;
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return true;
         }
@@ -572,35 +579,35 @@ public partial class FileService : IFileService
 
     private static string GetLanguageFromExtension(string ext)
     {
-        return ext.ToLowerInvariant() switch
+        return ext.ToUpperInvariant() switch
         {
-            "cs" => "csharp",
-            "csproj" => "xml",
-            "sln" => "plaintext",
-            "js" => "javascript",
-            "ts" => "typescript",
-            "jsx" => "jsx",
-            "tsx" => "tsx",
-            "py" => "python",
-            "java" => "java",
-            "kt" or "kts" => "kotlin",
-            "rb" => "ruby",
-            "php" => "php",
-            "go" => "go",
-            "rs" => "rust",
-            "c" => "c",
-            "cpp" or "hpp" or "h" => "cpp",
-            "sh" or "bash" => "bash",
-            "ps1" => "powershell",
-            "sql" => "sql",
-            "html" or "htm" => "html",
-            "css" => "css",
-            "scss" or "sass" => "scss",
-            "json" => "json",
-            "xml" => "xml",
-            "yaml" or "yml" => "yaml",
-            "md" => "markdown",
-            "toml" => "toml",
+            "CS" => "csharp",
+            "CSPROJ" => "xml",
+            "SLN" => "plaintext",
+            "JS" => "javascript",
+            "TS" => "typescript",
+            "JSX" => "jsx",
+            "TSX" => "tsx",
+            "PY" => "python",
+            "JAVA" => "java",
+            "KT" or "KTS" => "kotlin",
+            "RB" => "ruby",
+            "PHP" => "php",
+            "GO" => "go",
+            "RS" => "rust",
+            "C" => "c",
+            "CPP" or "HPP" or "H" => "cpp",
+            "SH" or "BASH" => "bash",
+            "PS1" => "powershell",
+            "SQL" => "sql",
+            "HTML" or "HTM" => "html",
+            "CSS" => "css",
+            "SCSS" or "SASS" => "scss",
+            "JSON" => "json",
+            "XML" => "xml",
+            "YAML" or "YML" => "yaml",
+            "MD" => "markdown",
+            "TOML" => "toml",
             _ => ext
         };
     }

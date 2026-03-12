@@ -1,21 +1,15 @@
 namespace Pebbles.Services.Tools;
 
 using Pebbles.Models;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 /// <summary>
 /// Tool to list directory contents.
 /// </summary>
-public sealed class ListDirectoryTool : ITool
+internal sealed class ListDirectoryTool(IFileService fileService) : ITool
 {
-    private readonly IFileService _fileService;
-
-    public ListDirectoryTool(IFileService fileService)
-    {
-        _fileService = fileService;
-    }
-
     public string Name => "list_directory";
 
     public string Description =>
@@ -56,7 +50,7 @@ public sealed class ListDirectoryTool : ITool
 
     public async Task<ToolExecutionResult> ExecuteAsync(string arguments, CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask; // Keep async signature for interface compatibility
+        await Task.CompletedTask.ConfigureAwait(false); // Keep async signature for interface compatibility
 
         var args = JsonSerializer.Deserialize<ListDirectoryArgs>(arguments);
         var path = string.IsNullOrWhiteSpace(args?.Path) ? null : args.Path;
@@ -65,7 +59,7 @@ public sealed class ListDirectoryTool : ITool
         try
         {
 #pragma warning disable CS8604 // Null argument for parameter accepting null
-            var items = _fileService.ListDirectory(path, filter);
+            var items = fileService.ListDirectory(path, filter);
 #pragma warning restore CS8604
 
             if (items.Count == 0)
@@ -84,7 +78,7 @@ public sealed class ListDirectoryTool : ITool
             {
                 var icon = item.IsDirectory ? "📁" : "📄";
                 var name = item.IsDirectory ? $"{item.Name}/" : item.Name;
-                output.AppendLine($"  {icon} {name}");
+                output.AppendLine(CultureInfo.InvariantCulture, $"  {icon} {name}");
             }
 
             var dirPath = path is not null ? path : Directory.GetCurrentDirectory();
@@ -96,7 +90,7 @@ public sealed class ListDirectoryTool : ITool
                 Content = output.ToString().Trim()
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {
@@ -106,7 +100,7 @@ public sealed class ListDirectoryTool : ITool
         }
     }
 
-    private record ListDirectoryArgs
+    private sealed record ListDirectoryArgs
     {
         [JsonPropertyName("path")]
         public string? Path { get; init; }

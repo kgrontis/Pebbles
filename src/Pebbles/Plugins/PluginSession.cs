@@ -3,7 +3,7 @@ namespace Pebbles.Plugins;
 /// <summary>
 /// Session information passed to plugin command handlers.
 /// </summary>
-public sealed class PluginSession
+internal sealed class PluginSession
 {
     /// <summary>
     /// Current model name.

@@ -7,7 +7,7 @@ using Pebbles.Models;
 /// <summary>
 /// Tool to search for text patterns in files (grep-style search).
 /// </summary>
-public class SearchFilesTool() : ITool
+internal sealed class SearchFilesTool() : ITool
 {
     public string Name => "search_files";
 
@@ -80,7 +80,7 @@ public class SearchFilesTool() : ITool
             {
                 regex = new Regex(args.Pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 return new ToolExecutionResult
                 {
@@ -98,7 +98,7 @@ public class SearchFilesTool() : ITool
 
                 try
                 {
-                    var lines = await File.ReadAllLinesAsync(file, cancellationToken);
+                    var lines = await File.ReadAllLinesAsync(file, cancellationToken).ConfigureAwait(false);
                     for (var i = 0; i < lines.Length; i++)
                     {
                         if (regex.IsMatch(lines[i]))
@@ -109,7 +109,7 @@ public class SearchFilesTool() : ITool
                         }
                     }
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     // Skip binary/unreadable files
                 }
@@ -125,7 +125,7 @@ public class SearchFilesTool() : ITool
                 Content = content
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {
@@ -135,7 +135,7 @@ public class SearchFilesTool() : ITool
         }
     }
 
-    private record SearchFilesArgs
+    private sealed record SearchFilesArgs
     {
         public string Pattern { get; init; } = string.Empty;
         public string? Path { get; init; }

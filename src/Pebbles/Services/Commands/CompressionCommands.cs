@@ -6,7 +6,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles compression-related commands: /compress, /autocompress.
 /// </summary>
-public sealed class CompressionCommands(ICompressionService? compressionService, PebblesOptions options)
+internal sealed class CompressionCommands(ICompressionService? compressionService, PebblesOptions options)
 {
     public async Task<CommandResult> HandleCompress(ChatSession session)
     {
@@ -34,7 +34,7 @@ public sealed class CompressionCommands(ICompressionService? compressionService,
             var result = await compressionService.CompactAsync(
                 session.Messages,
                 options.KeepRecentMessages,
-                session.CompressionStats.LastSummary);
+                session.CompressionStats.LastSummary).ConfigureAwait(false);
 
             if (!result.Success)
             {
@@ -81,7 +81,7 @@ public sealed class CompressionCommands(ICompressionService? compressionService,
 
             return CommandResult.OkWithMarkup(string.Join("\n", lines));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException || ex is OverflowException)
         {
             return CommandResult.Fail($"Compression failed: {ex.Message}");
         }

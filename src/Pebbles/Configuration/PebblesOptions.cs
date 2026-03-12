@@ -3,9 +3,19 @@ namespace Pebbles.Configuration;
 /// <summary>
 /// Configuration options for Pebbles.
 /// </summary>
+#pragma warning disable CA1515 // Consider making public types internal
 public sealed class PebblesOptions
+#pragma warning restore CA1515 // Consider making public types internal
 {
+    /// <summary>
+    /// The Section Name in appsettings.json for Pebbles configuration.
+    /// </summary>
     public const string SectionName = "Pebbles";
+
+    /// <summary>
+    /// HTTP client timeout in seconds. Default is 120 seconds.
+    /// </summary>
+    public int HttpClientTimeoutSeconds { get; set; } = 120;
 
     /// <summary>
     /// The default AI model to use.
@@ -15,7 +25,7 @@ public sealed class PebblesOptions
     /// <summary>
     /// Available models for selection.
     /// </summary>
-    public string[] AvailableModels { get; set; } =
+    public IReadOnlyList<string> AvailableModels { get; } =
     [
         "qwen3.5-plus",
         "qwen3-coder-plus",
@@ -43,19 +53,39 @@ public sealed class PebblesOptions
     public double TokenEstimationMultiplier { get; set; } = 1.3;
 
     /// <summary>
-    /// AI provider to use ("mock" for testing, "dashscope" for Alibaba Cloud).
+    /// AI provider to use ("mock" for testing, "alibabacloud" for Alibaba Cloud).
     /// </summary>
     public string Provider { get; set; } = "mock";
 
     /// <summary>
-    /// DashScope API key (or set BAILIAN_CODING_PLAN_API_KEY environment variable).
+    /// Alibaba Cloud API key (or set ALIBABA_CLOUD_API_KEY environment variable).
     /// </summary>
-    public string? DashScopeApiKey { get; set; }
+    public string? AlibabaCloudApiKey { get; set; }
 
     /// <summary>
-    /// DashScope base URL (regional endpoints).
+    /// Alibaba Cloud base URL (Coding Plan endpoint).
     /// </summary>
-    public string DashScopeBaseUrl { get; set; } = "https://coding-intl.dashscope.aliyuncs.com/v1";
+    public Uri AlibabaCloudBaseUrl { get; set; } = new Uri("https://coding-intl.dashscope.aliyuncs.com/v1");
+
+    /// <summary>
+    /// OpenAI API key (or set OPENAI_API_KEY environment variable).
+    /// </summary>
+    public string? OpenAiApiKey { get; set; }
+
+    /// <summary>
+    /// OpenAI base URL.
+    /// </summary>
+    public Uri OpenAiBaseUrl { get; set; } = new Uri("https://api.openai.com/v1");
+
+    /// <summary>
+    /// Anthropic API key (or set ANTHROPIC_API_KEY environment variable).
+    /// </summary>
+    public string? AnthropicApiKey { get; set; }
+
+    /// <summary>
+    /// Anthropic base URL.
+    /// </summary>
+    public Uri AnthropicBaseUrl { get; set; } = new Uri("https://api.anthropic.com");
 
     /// <summary>
     /// Enable automatic context compression when threshold is reached.
@@ -77,7 +107,7 @@ public sealed class PebblesOptions
     /// <summary>
     /// Context window token limits per model (in thousands).
     /// </summary>
-    public Dictionary<string, int> ModelContextWindows { get; set; } = new()
+    public Dictionary<string, int> ModelContextWindows { get; } = new()
     {
         ["qwen3.5-plus"] = 1_000_000,
         ["qwen3-coder-plus"] = 1_000_000,

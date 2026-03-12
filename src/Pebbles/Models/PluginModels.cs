@@ -6,7 +6,7 @@ namespace Pebbles.Models;
 /// <summary>
 /// Represents a loaded C# plugin.
 /// </summary>
-public sealed class CSharpPlugin
+internal sealed class CSharpPlugin
 {
     /// <summary>
     /// Plugin name.
@@ -37,7 +37,7 @@ public sealed class CSharpPlugin
 /// <summary>
 /// Result of loading plugins.
 /// </summary>
-public sealed class PluginLoadResult
+internal sealed class PluginLoadResult
 {
     /// <summary>
     /// Successfully loaded plugins.
@@ -58,7 +58,7 @@ public sealed class PluginLoadResult
 /// <summary>
 /// Represents a loaded tool plugin.
 /// </summary>
-public record LoadedToolPlugin
+internal record LoadedToolPlugin
 {
     public string Name { get; init; } = string.Empty;
     public string Version { get; init; } = string.Empty;
@@ -70,7 +70,7 @@ public record LoadedToolPlugin
 /// <summary>
 /// Result of loading tool plugins.
 /// </summary>
-public record ToolPluginLoadResult
+internal record ToolPluginLoadResult
 {
     public List<LoadedToolPlugin> Plugins { get; init; } = new();
     public List<(string Path, string Error)> Errors { get; init; } = new();
@@ -79,7 +79,7 @@ public record ToolPluginLoadResult
 /// <summary>
 /// Interface for tool plugin loading.
 /// </summary>
-public interface IToolPluginLoader
+internal interface IToolPluginLoader
 {
     /// <summary>
     /// Currently loaded tool plugins.

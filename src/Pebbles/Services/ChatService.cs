@@ -8,7 +8,7 @@ using Spectre.Console;
 /// <summary>
 /// Main chat application service - orchestrates the conversation loop.
 /// </summary>
-public sealed class ChatService(
+internal sealed class ChatService(
     IAIProvider aiProvider,
     ICommandHandler commandHandler,
     IChatRenderer renderer,
@@ -16,11 +16,25 @@ public sealed class ChatService(
     IFileService fileService,
     IToolExecutionService toolExecutionService,
     IContextManagementService contextManagementService,
+    ISessionStore sessionStore,
     PebblesOptions options) : IChatService
 {
     public async Task RunAsync()
     {
-        var session = ChatSession.Create(options.DefaultModel);
+        // Try to load last active session
+        var lastSessionId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
+        ChatSession? session = null;
+        
+        if (!string.IsNullOrEmpty(lastSessionId))
+        {
+            session = await sessionStore.LoadSessionAsync(lastSessionId).ConfigureAwait(false);
+            if (session is not null)
+            {
+                AnsiConsole.MarkupLine($"[dim]Loaded previous session: {lastSessionId}[/]");
+            }
+        }
+        
+        session ??= ChatSession.Create(options.DefaultModel);
         renderer.RenderWelcome(session);
 
         while (true)
@@ -36,7 +50,7 @@ public sealed class ChatService(
 
             if (commandHandler.IsCommand(input))
             {
-                var result = await commandHandler.ExecuteAsync(input, session);
+                var result = await commandHandler.ExecuteAsync(input, session).ConfigureAwait(false);
                 renderer.RenderCommandResult(result, session);
 
                 if (result.ShouldExit)
@@ -48,7 +62,7 @@ public sealed class ChatService(
             var parsed = fileService.ParseFileReferences(input);
             if (parsed.HasFiles)
             {
-                await LoadFilesAsync(parsed);
+                await LoadFilesAsync(parsed).ConfigureAwait(false);
                 input = parsed.CleanInput;
             }
 
@@ -59,7 +73,7 @@ public sealed class ChatService(
             aiProvider.AddToHistory(userMsg);
             renderer.RenderUserMessage(parsed.Original);
 
-            var assistantMsg = await toolExecutionService.ExecuteToolLoopAsync(input);
+            var assistantMsg = await toolExecutionService.ExecuteToolLoopAsync(input).ConfigureAwait(false);
 
             session.Messages.Add(assistantMsg);
             aiProvider.AddToHistory(assistantMsg);
@@ -70,9 +84,16 @@ public sealed class ChatService(
             session.TotalOutputTokens += assistantMsg.TokenCount;
             renderer.RenderTokenInfo(inputTokens, assistantMsg.TokenCount, session);
 
-            await contextManagementService.CheckAutoCompressionAsync(session);
-            await contextManagementService.CheckMemoryExtractionAsync(session);
+            await contextManagementService.CheckAutoCompressionAsync(session).ConfigureAwait(false);
+            await contextManagementService.CheckMemoryExtractionAsync(session).ConfigureAwait(false);
+            
+            // Auto-save session after each message
+            await sessionStore.SaveSessionAsync(session).ConfigureAwait(false);
         }
+        
+        // Final save on exit
+        await sessionStore.SaveSessionAsync(session).ConfigureAwait(false);
+        await sessionStore.SetLastActiveSessionIdAsync(session.Id).ConfigureAwait(false);
     }
 
     private async Task LoadFilesAsync(ParsedInput parsed)

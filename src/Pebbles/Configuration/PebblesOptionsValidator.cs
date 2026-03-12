@@ -5,8 +5,17 @@ namespace Pebbles.Configuration;
 /// <summary>
 /// Validator for PebblesOptions configuration.
 /// </summary>
-public sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
+internal sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
 {
+    private static readonly HashSet<string> ValidProviders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ProviderNames.Mock,
+        ProviderNames.AlibabaCloud,
+        ProviderNames.OpenAI,
+        ProviderNames.Anthropic,
+        ProviderNames.DashScope // Legacy support
+    };
+
     public ValidateOptionsResult Validate(string? name, PebblesOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.DefaultModel))
@@ -14,9 +23,24 @@ public sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
             return ValidateOptionsResult.Fail("DefaultModel is required.");
         }
 
-        if (options.AvailableModels is null || options.AvailableModels.Length == 0)
+        if (options.AvailableModels is null || options.AvailableModels.Count == 0)
         {
             return ValidateOptionsResult.Fail("AvailableModels must contain at least one model.");
+        }
+
+        // Validate DefaultModel is in AvailableModels
+        if (!options.AvailableModels.Contains(options.DefaultModel, StringComparer.OrdinalIgnoreCase))
+        {
+            return ValidateOptionsResult.Fail(
+                $"DefaultModel '{options.DefaultModel}' is not in AvailableModels. " +
+                $"Valid options: {string.Join(", ", options.AvailableModels)}");
+        }
+
+        // Validate Provider
+        if (!string.IsNullOrWhiteSpace(options.Provider) && !ValidProviders.Contains(options.Provider))
+        {
+            return ValidateOptionsResult.Fail(
+                $"Provider must be one of: {string.Join(", ", ValidProviders)}. Got '{options.Provider}'.");
         }
 
         if (options.InputCostPer1K < 0)
@@ -42,6 +66,11 @@ public sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
         if (options.KeepRecentMessages < 1)
         {
             return ValidateOptionsResult.Fail("KeepRecentMessages must be at least 1.");
+        }
+
+        if (options.HttpClientTimeoutSeconds <= 0)
+        {
+            return ValidateOptionsResult.Fail("HttpClientTimeoutSeconds must be positive.");
         }
 
         return ValidateOptionsResult.Success;

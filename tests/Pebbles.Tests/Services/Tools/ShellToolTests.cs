@@ -24,7 +24,7 @@ public class ShellToolTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("'command' is required", result.Error);
+        Assert.Contains("'command' is required", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public class ShellToolTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Dangerous command", result.Error);
+        Assert.Contains("Dangerous command", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class ShellToolTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Interactive command", result.Error);
+        Assert.Contains("Interactive command", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class ShellToolTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("does not exist", result.Error);
+        Assert.Contains("does not exist", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class ShellToolTests
         Assert.NotNull(definition.Function);
         Assert.Equal("run_command", definition.Function.Name);
         Assert.NotEmpty(definition.Function.Description);
-        Assert.Contains("command", definition.Function.Parameters.Properties.Keys);
-        Assert.Contains("command", definition.Function.Parameters.Required);
+        Assert.True(definition.Function.Parameters.Properties.ContainsKey("command"), "Expected 'command' in Properties");
+        Assert.True(definition.Function.Parameters.Required.Contains("command"), "Expected 'command' in Required");
     }
 }

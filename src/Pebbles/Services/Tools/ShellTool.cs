@@ -2,6 +2,7 @@ namespace Pebbles.Services.Tools;
 
 using Pebbles.Models;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -9,7 +10,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to execute shell commands safely.
 /// </summary>
-public sealed class ShellTool : ITool
+internal sealed class ShellTool : ITool
 {
     private readonly string _workingDirectory;
 
@@ -108,8 +109,8 @@ public sealed class ShellTool : ITool
         {
             var policy = RetryPolicies.GetShellCommandPolicy();
             var output = await policy.ExecuteAsync(
-                async ct => await ExecuteCommandAsync(args.Command, workDir, timeout, ct),
-                cancellationToken);
+                async ct => await ExecuteCommandAsync(args.Command, workDir, timeout, ct).ConfigureAwait(false),
+                cancellationToken).ConfigureAwait(false);
 
             return new ToolExecutionResult
             {
@@ -125,7 +126,7 @@ public sealed class ShellTool : ITool
                 Error = $"Command timed out after {timeout / 1000} seconds"
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {
@@ -211,16 +212,16 @@ public sealed class ShellTool : ITool
 
         using var process = new Process { StartInfo = startInfo };
 
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-
         process.Start();
+
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
         // Wait for completion or timeout
         var completed = await Task.Run(() =>
         {
             return process.WaitForExit(timeoutMs);
-        }, cancellationToken);
+        }, cancellationToken).ConfigureAwait(false);
 
         if (!completed)
         {
@@ -228,24 +229,24 @@ public sealed class ShellTool : ITool
             throw new OperationCanceledException($"Command timed out after {timeoutMs}ms");
         }
 
-        var output = await outputTask;
-        var error = await errorTask;
+        var output = await outputTask.ConfigureAwait(false);
+        var error = await errorTask.ConfigureAwait(false);
 
         // Combine output and error
         var result = new StringBuilder();
         if (!string.IsNullOrEmpty(output))
             result.AppendLine(output.Trim());
         if (!string.IsNullOrEmpty(error))
-            result.AppendLine($"ERROR: {error.Trim()}");
+            result.AppendLine(CultureInfo.InvariantCulture, $"ERROR: {error.Trim()}");
 
         // Include exit code
         if (process.ExitCode != 0)
-            result.AppendLine($"\nExit code: {process.ExitCode}");
+            result.AppendLine(CultureInfo.InvariantCulture, $"\nExit code: {process.ExitCode}");
 
         return result.ToString().Trim();
     }
 
-    private record ShellArgs
+    private sealed record ShellArgs
     {
         [JsonPropertyName("command")]
         public string Command { get; init; } = string.Empty;

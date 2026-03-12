@@ -6,7 +6,7 @@ using Polly.Retry;
 /// <summary>
 /// Provides retry policies for resilient operations.
 /// </summary>
-public static class RetryPolicies
+internal static class RetryPolicies
 {
     /// <summary>
     /// Gets a retry policy for file I/O operations.

@@ -1,25 +1,28 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 using Pebbles.Models;
 using Pebbles.Services;
 using Pebbles.Services.Commands;
 using Pebbles.Services.Tools;
 using Pebbles.UI;
+using System.Runtime.InteropServices;
 
 namespace Pebbles.Configuration;
 
 /// <summary>
 /// Extension methods for configuring Pebbles services.
 /// </summary>
-public static class ServiceCollectionExtensions
+internal static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds all Pebbles services to the service collection.
     /// </summary>
     public static IServiceCollection AddPebblesServices(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string? providerOverride = null)
     {
         // Configure options with validation
         services.AddOptions<PebblesOptions>()
@@ -28,8 +31,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<PebblesOptions>, PebblesOptionsValidator>();
 
         // Register options as singleton for services that need it directly
+        // Apply provider override if specified (from user settings)
         services.AddSingleton<PebblesOptions>(sp =>
-            sp.GetRequiredService<IOptions<PebblesOptions>>().Value);
+        {
+            var options = sp.GetRequiredService<IOptions<PebblesOptions>>().Value;
+            if (providerOverride is not null)
+            {
+                options.Provider = providerOverride;
+            }
+            return options;
+        });
 
         // Register core services
         services.AddSingleton<ContextManager>();
@@ -57,6 +68,10 @@ public static class ServiceCollectionExtensions
         // Register context management
         services.AddSingleton<IContextManagementService, ContextManagementService>();
 
+        // Register session store
+        services.AddSingleton<ISessionStore, SessionStore>();
+        services.AddSingleton<SessionCommands>();
+
         // Register command handlers (split by responsibility)
         services.AddCommandHandlers();
 
@@ -83,11 +98,95 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         var providerSection = configuration.GetSection($"{PebblesOptions.SectionName}:Provider");
-        var provider = providerSection.Value ?? "mock";
+        var provider = providerSection.Value ?? ProviderNames.Mock;
 
-        if (provider.Equals("dashscope", StringComparison.OrdinalIgnoreCase))
+        // Register HttpClient for the selected provider using IHttpClientFactory pattern
+        // This avoids socket exhaustion and properly manages HttpClient lifetimes
+        if (IsAlibabaCloudProvider(provider))
         {
-            services.AddSingleton<IAIProvider, DashScopeProvider>();
+            services.AddHttpClient(ProviderNames.AlibabaCloud)
+                .ConfigureHttpClient((sp, client) =>
+                {
+                    var options = sp.GetRequiredService<PebblesOptions>();
+                    client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
+                    var apiKey = GetApiKey(options.AlibabaCloudApiKey, "ALIBABA_CLOUD_API_KEY") ?? throw new InvalidOperationException(
+                            "Alibaba Cloud API key not configured. Set ALIBABA_CLOUD_API_KEY environment variable " +
+                            "or add AlibabaCloudApiKey to appsettings.json");
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+                    // Required User-Agent header for Coding Plan API
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(GetUserAgent());
+                });
+
+            services.AddSingleton<IAIProvider>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient(ProviderNames.AlibabaCloud);
+                var options = sp.GetRequiredService<PebblesOptions>();
+                var contextManager = sp.GetRequiredService<ContextManager>();
+                var fileService = sp.GetRequiredService<IFileService>();
+                var systemPromptService = sp.GetRequiredService<ISystemPromptService>();
+                return new AlibabaCloudProvider(httpClient, options, contextManager, fileService, systemPromptService);
+            });
+        }
+        else if (provider.Equals(ProviderNames.OpenAI, StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient(ProviderNames.OpenAI)
+                .ConfigureHttpClient((sp, client) =>
+                {
+                    var options = sp.GetRequiredService<PebblesOptions>();
+                    client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
+                    var apiKey = GetApiKey(options.OpenAiApiKey, "OPENAI_API_KEY");
+                    if (apiKey is null)
+                    {
+                        throw new InvalidOperationException(
+                            "OpenAI API key not configured. Set OPENAI_API_KEY environment variable " +
+                            "or add OpenAiApiKey to appsettings.json");
+                    }
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(GetUserAgent());
+                });
+
+            services.AddSingleton<IAIProvider>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient(ProviderNames.OpenAI);
+                var options = sp.GetRequiredService<PebblesOptions>();
+                return new OpenAIProvider(httpClient, options);
+            });
+        }
+        else if (provider.Equals(ProviderNames.Anthropic, StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient(ProviderNames.Anthropic)
+                .ConfigureHttpClient((sp, client) =>
+                {
+                    var options = sp.GetRequiredService<PebblesOptions>();
+                    client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
+                    var apiKey = GetApiKey(options.AnthropicApiKey, "ANTHROPIC_API_KEY");
+                    if (apiKey is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Anthropic API key not configured. Set ANTHROPIC_API_KEY environment variable " +
+                            "or add AnthropicApiKey to appsettings.json");
+                    }
+                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                    client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(GetUserAgent());
+                });
+
+            services.AddSingleton<IAIProvider>(sp =>
+            {
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient(ProviderNames.Anthropic);
+                var options = sp.GetRequiredService<PebblesOptions>();
+                return new AnthropicProvider(httpClient, options);
+            });
         }
         else
         {
@@ -95,6 +194,29 @@ public static class ServiceCollectionExtensions
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// Checks if the provider is Alibaba Cloud (including legacy DashScope name).
+    /// </summary>
+    private static bool IsAlibabaCloudProvider(string provider) =>
+        provider.Equals(ProviderNames.AlibabaCloud, StringComparison.OrdinalIgnoreCase) ||
+        provider.Equals(ProviderNames.DashScope, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gets an API key from config or environment variable, with empty string validation.
+    /// </summary>
+    private static string? GetApiKey(string? configValue, string envVarName)
+    {
+        // Check config value first (must be non-empty)
+        if (!string.IsNullOrWhiteSpace(configValue))
+        {
+            return configValue;
+        }
+
+        // Fall back to environment variable (must be non-empty)
+        var envValue = Environment.GetEnvironmentVariable(envVarName);
+        return string.IsNullOrWhiteSpace(envValue) ? null : envValue;
     }
 
     /// <summary>
@@ -150,5 +272,16 @@ public static class ServiceCollectionExtensions
         // Composite handler that aggregates all specialized handlers
         // Note: PluginCommands is created internally by CompositeCommandHandler to avoid circular dependency
         services.AddSingleton<ICommandHandler, CompositeCommandHandler>();
+    }
+
+    /// <summary>
+    /// Generates a User-Agent string in the format: Pebbles/{version} ({platform}; {arch})
+    /// </summary>
+    private static string GetUserAgent()
+    {
+        var version = typeof(ServiceCollectionExtensions).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+        var platform = Environment.OSVersion.Platform.ToString();
+        var arch = RuntimeInformation.ProcessArchitecture.ToString();
+        return $"Pebbles/{version} ({platform}; {arch})";
     }
 }

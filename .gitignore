@@ -105,3 +105,4 @@ Desktop.ini
 
 # Temp files from tests
 AppData/
+.pebbles_test

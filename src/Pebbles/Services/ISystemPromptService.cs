@@ -3,7 +3,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Provides system prompts for the AI assistant.
 /// </summary>
-public interface ISystemPromptService
+internal interface ISystemPromptService
 {
     /// <summary>
     /// Gets the main agent system prompt.

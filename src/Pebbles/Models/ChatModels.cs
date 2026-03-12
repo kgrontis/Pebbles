@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
+
 namespace Pebbles.Models;
 
-public enum ChatRole
+internal enum ChatRole
 {
     User,
     Assistant,
@@ -8,7 +10,7 @@ public enum ChatRole
     Tool
 }
 
-public enum MessageStatus
+internal enum MessageStatus
 {
     Pending,
     Streaming,
@@ -18,7 +20,7 @@ public enum MessageStatus
 /// <summary>
 /// Represents a thinking block in an AI response.
 /// </summary>
-public record ThinkingBlock
+internal record ThinkingBlock
 {
     public string Content { get; init; } = string.Empty;
     public TimeSpan Duration { get; init; }
@@ -28,7 +30,7 @@ public record ThinkingBlock
 /// <summary>
 /// Represents a single message in the chat conversation.
 /// </summary>
-public record ChatMessage
+internal record ChatMessage
 {
     public ChatRole Role { get; init; }
     public string Content { get; init; } = string.Empty;
@@ -62,11 +64,11 @@ public record ChatMessage
 /// <summary>
 /// Represents the current chat session state.
 /// </summary>
-public class ChatSession
+internal class ChatSession
 {
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public string Model { get; set; } = "qwen3.5-plus";
-    public List<ChatMessage> Messages { get; } = [];
+    public Collection<ChatMessage> Messages { get; } = [];
     public int TotalInputTokens { get; set; }
     public int TotalOutputTokens { get; set; }
 

@@ -4,13 +4,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Pebbles.Models;
 using Pebbles.Plugins;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Security;
 
 /// <summary>
 /// Compiles and loads C# plugins using Roslyn.
 /// </summary>
-public sealed class RoslynPluginService
+internal sealed class RoslynPluginService
 {
     private readonly string _workingDirectory;
 
@@ -24,7 +26,7 @@ public sealed class RoslynPluginService
     /// </summary>
     /// <param name="sourcePath">Path to the .cs file</param>
     /// <returns>Loaded plugin instance or null if compilation failed</returns>
-    public (CSharpPlugin? Plugin, string? Error) LoadPlugin(string sourcePath)
+    public static (CSharpPlugin? Plugin, string? Error) LoadPlugin(string sourcePath)
     {
         try
         {
@@ -32,7 +34,7 @@ public sealed class RoslynPluginService
             var plugin = CompileAndLoad(sourceCode, sourcePath);
             return (plugin, null);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
         {
             return (null, ex.Message);
         }
@@ -41,7 +43,7 @@ public sealed class RoslynPluginService
     /// <summary>
     /// Compile C# source code and load the resulting assembly.
     /// </summary>
-    private CSharpPlugin? CompileAndLoad(string sourceCode, string sourcePath)
+    private static CSharpPlugin? CompileAndLoad(string sourceCode, string sourcePath)
     {
         // Get references to all required assemblies
         var references = GetMetadataReferences();
@@ -67,7 +69,7 @@ public sealed class RoslynPluginService
         {
             var errors = emitResult.Diagnostics
                 .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => $"  Line {d.Location.GetLineSpan().StartLinePosition.Line + 1}: {d.GetMessage()}")
+                .Select(d => $"  Line {d.Location.GetLineSpan().StartLinePosition.Line + 1}: {d.GetMessage(CultureInfo.InvariantCulture)}")
                 .ToList();
 
             throw new CompilationException($"Compilation failed:\n{string.Join("\n", errors)}");
@@ -80,28 +82,19 @@ public sealed class RoslynPluginService
 
         // Find PluginBase-derived class
         var pluginType = assembly.GetTypes()
-            .FirstOrDefault(t => typeof(global::Pebbles.Plugins.PluginBase).IsAssignableFrom(t) && !t.IsAbstract);
-
-        if (pluginType is null)
-        {
-            throw new InvalidOperationException("No class inheriting from PluginBase found in the plugin.");
-        }
+            .FirstOrDefault(t => typeof(global::Pebbles.Plugins.PluginBase).IsAssignableFrom(t) && !t.IsAbstract) ?? throw new InvalidOperationException("No class inheriting from PluginBase found in the plugin.");
 
         // Create instance
-        var instance = Activator.CreateInstance(pluginType) as global::Pebbles.Plugins.PluginBase;
-        if (instance is null)
-        {
-            throw new InvalidOperationException("Failed to create plugin instance.");
-        }
-
-        return new CSharpPlugin
-        {
-            Name = instance.Name,
-            Version = instance.Version,
-            Description = instance.Description,
-            SourcePath = sourcePath,
-            Instance = instance
-        };
+        return Activator.CreateInstance(pluginType) is not global::Pebbles.Plugins.PluginBase instance
+            ? throw new InvalidOperationException("Failed to create plugin instance.")
+            : new CSharpPlugin
+            {
+                Name = instance.Name,
+                Version = instance.Version,
+                Description = instance.Description,
+                SourcePath = sourcePath,
+                Instance = instance
+            };
     }
 
     /// <summary>
@@ -143,7 +136,7 @@ public sealed class RoslynPluginService
                 {
                     references.Add(MetadataReference.CreateFromFile(assembly.Location));
                 }
-                catch
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
                 {
                     // Skip assemblies that can't be referenced
                 }
@@ -166,7 +159,7 @@ public sealed class RoslynPluginService
     /// <summary>
     /// Loads a tool plugin from a C# script file.
     /// </summary>
-    public (LoadedToolPlugin? Plugin, string? Error) LoadToolPlugin(string scriptPath)
+    public static (LoadedToolPlugin? Plugin, string? Error) LoadToolPlugin(string scriptPath)
     {
         try
         {
@@ -209,9 +202,8 @@ public sealed class RoslynPluginService
             }
 
             // Create instance
-            var instance = Activator.CreateInstance(pluginType) as IToolPlugin;
 
-            if (instance is null)
+            if (Activator.CreateInstance(pluginType) is not IToolPlugin instance)
             {
                 return (null, "Failed to create plugin instance");
             }
@@ -225,7 +217,7 @@ public sealed class RoslynPluginService
                 Instance = instance
             }, null);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
         {
             return (null, $"Failed to load plugin: {ex.Message}");
         }
@@ -234,7 +226,7 @@ public sealed class RoslynPluginService
     /// <summary>
     /// Creates a C# compilation from source code.
     /// </summary>
-    private CSharpCompilation CreateCompilation(string sourceCode, string sourcePath)
+    private static CSharpCompilation CreateCompilation(string sourceCode, string sourcePath)
     {
         // Get references to all required assemblies
         var references = GetMetadataReferences();
@@ -269,9 +261,17 @@ file sealed class PluginLoadContext : AssemblyLoadContext
 /// <summary>
 /// Exception thrown when plugin compilation fails.
 /// </summary>
-public sealed class CompilationException : Exception
+internal sealed class CompilationException : Exception
 {
     public CompilationException(string message) : base(message)
+    {
+    }
+
+    public CompilationException()
+    {
+    }
+
+    public CompilationException(string message, Exception innerException) : base(message, innerException)
     {
     }
 }

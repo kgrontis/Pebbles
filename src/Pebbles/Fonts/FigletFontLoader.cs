@@ -6,7 +6,7 @@ namespace Pebbles.Fonts;
 /// <summary>
 /// Loads FIGlet fonts from embedded resources.
 /// </summary>
-public static class FigletFontLoader
+internal static class FigletFontLoader
 {
     private static FigletFont? _slant;
 

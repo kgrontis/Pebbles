@@ -3,7 +3,7 @@ namespace Pebbles.Models;
 /// <summary>
 /// Result of a context compression operation.
 /// </summary>
-public record CompressionResult
+internal record CompressionResult
 {
     /// <summary>
     /// Whether the compression was successful.
@@ -79,7 +79,7 @@ public record CompressionResult
 /// <summary>
 /// Statistics about compression operations in a session.
 /// </summary>
-public class CompressionStats
+internal class CompressionStats
 {
     /// <summary>
     /// Total number of compressions performed.

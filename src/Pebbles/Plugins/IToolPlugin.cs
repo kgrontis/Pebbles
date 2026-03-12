@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Interface for tool plugins. Implement this to create custom tools.
 /// </summary>
-public interface IToolPlugin
+internal interface IToolPlugin
 {
     /// <summary>
     /// Tool identifier (e.g., "my_custom_tool").

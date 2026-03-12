@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles plugin-related commands: /plugins, /reload, /tools.
 /// </summary>
-public sealed class PluginCommands(
+internal sealed class PluginCommands(
     IPluginLoader pluginLoader,
     IToolPluginLoader? toolPluginLoader,
     Action? refreshCallback = null)

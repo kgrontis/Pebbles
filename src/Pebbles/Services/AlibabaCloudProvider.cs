@@ -1,6 +1,6 @@
 namespace Pebbles.Services;
 
-using System.Net.Http.Headers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -9,50 +9,29 @@ using Pebbles.Configuration;
 using Pebbles.Models;
 
 /// <summary>
-/// Alibaba Cloud DashScope AI provider with streaming support (OpenAI-compatible API).
+/// Alibaba Cloud AI provider with streaming support (OpenAI-compatible API).
 /// </summary>
-public class DashScopeProvider : IAIProvider
+/// <remarks>
+/// Initializes a new instance of the AlibabaCloudProvider.
+/// </remarks>
+/// <param name="httpClient">The HttpClient configured with appropriate headers and timeout.</param>
+/// <param name="options">The Pebbles configuration options.</param>
+/// <param name="contextManager">The context manager for managing conversation context.</param>
+/// <param name="fileService">The file service for file operations.</param>
+/// <param name="systemPromptService">The system prompt service for generating system prompts.</param>
+internal sealed class AlibabaCloudProvider(
+    HttpClient httpClient,
+    PebblesOptions options,
+    ContextManager contextManager,
+    IFileService fileService,
+    ISystemPromptService systemPromptService) : IAIProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly PebblesOptions _options;
-    private readonly ContextManager _contextManager;
-    private readonly IFileService _fileService;
-    private readonly ISystemPromptService _systemPromptService;
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
-    private readonly TimeSpan _thinkingDuration = TimeSpan.Zero;
-    private int _lastInputTokens = 0;
-    private int _lastOutputTokens = 0;
-
-    public DashScopeProvider(
-        PebblesOptions options,
-        ContextManager contextManager,
-        IFileService fileService,
-        ISystemPromptService systemPromptService)
-    {
-        _options = options;
-        _contextManager = contextManager;
-        _fileService = fileService;
-        _systemPromptService = systemPromptService;
-        _httpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(120)
-        };
-
-        // Get API key from options or environment variable
-        var apiKey = _options.DashScopeApiKey
-            ?? Environment.GetEnvironmentVariable("BAILIAN_CODING_PLAN_API_KEY")
-            ?? throw new InvalidOperationException(
-                "DashScope API key not configured. Set BAILIAN_CODING_PLAN_API_KEY environment variable " +
-                "or add DashScopeApiKey to appsettings.json");
-
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", apiKey);
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
-        // Add User-Agent to identify as a coding agent
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Pebbles/1.0 (Coding Agent)");
-    }
+    private TimeSpan _thinkingDuration = TimeSpan.Zero;
+    private readonly Stopwatch _thinkingStopwatch = new();
+    private int _lastInputTokens;
+    private int _lastOutputTokens;
 
     /// <summary>
     /// Adds a message to the conversation history.
@@ -97,54 +76,58 @@ public class DashScopeProvider : IAIProvider
 
         var request = new ChatCompletionRequest
         {
-            Model = _options.DefaultModel,
+            Model = options.DefaultModel,
             Messages = messages,
             Stream = true
         };
 
-        var url = $"{_options.DashScopeBaseUrl}/chat/completions";
+        var url = $"{options.AlibabaCloudBaseUrl}/chat/completions";
         var content = new StringContent(
-            JsonSerializer.Serialize(request, DashScopeJsonContext.Default.ChatCompletionRequest),
+            JsonSerializer.Serialize(request, AlibabaCloudJsonContext.Default.ChatCompletionRequest),
             Encoding.UTF8,
             "application/json");
 
         var responseContent = new StringBuilder();
+        var thinkingContent = new StringBuilder();
+        var isThinking = false;
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
         httpRequest.Content = content;
 
         var policy = RetryPolicies.GetApiPolicy();
         using var response = await policy.ExecuteAsync(
-            async ct => await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct),
-            cancellationToken);
+            async ct => await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+        var responseMessage = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        
         response.EnsureSuccessStatusCode();
 
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);
 
         while (true)
         {
-            var line = await reader.ReadLineAsync(cancellationToken);
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line is null)
                 break;
 
             if (string.IsNullOrWhiteSpace(line))
                 continue;
-                
-            if (!line.StartsWith("data: "))
+
+            if (!line.StartsWith("data: ", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             var data = line[6..].Trim();
             if (data == "[DONE]")
                 break;
-            
+
             if (string.IsNullOrEmpty(data))
                 continue;
 
             StreamChunk? chunk;
             try
             {
-                chunk = JsonSerializer.Deserialize(data, DashScopeJsonContext.Default.StreamChunk);
+                chunk = JsonSerializer.Deserialize(data, AlibabaCloudJsonContext.Default.StreamChunk);
             }
             catch (JsonException)
             {
@@ -155,21 +138,40 @@ public class DashScopeProvider : IAIProvider
                 continue;
 
             var delta = chunk.Choices[0].Delta;
-            
+
             // Handle reasoning/thinking content separately from regular content
             if (!string.IsNullOrEmpty(delta?.ReasoningContent))
             {
-                responseContent.Append(delta.ReasoningContent);
+                if (!isThinking)
+                {
+                    isThinking = true;
+                    _thinkingStopwatch.Restart();
+                }
+                thinkingContent.Append(delta.ReasoningContent);
                 // Prefix thinking content with marker for renderer to style
                 yield return $"[THINKING]{delta.ReasoningContent}";
                 continue;
             }
-            
+
             if (!string.IsNullOrEmpty(delta?.Content))
             {
+                if (isThinking)
+                {
+                    isThinking = false;
+                    _thinkingStopwatch.Stop();
+                    _thinkingDuration = _thinkingStopwatch.Elapsed;
+                }
                 responseContent.Append(delta.Content);
                 yield return delta.Content;
             }
+        }
+
+        // Store thinking content and duration
+        _lastThinking = thinkingContent.ToString();
+        if (isThinking)
+        {
+            _thinkingStopwatch.Stop();
+            _thinkingDuration = _thinkingStopwatch.Elapsed;
         }
 
         // Store final stats
@@ -182,10 +184,10 @@ public class DashScopeProvider : IAIProvider
     private List<ChatMessageItem> BuildMessages()
     {
         // Build enhanced system prompt with context
-        var context = _contextManager.GetContextForPrompt();
-        var files = _fileService.FormatFilesForPrompt();
+        var context = contextManager.GetContextForPrompt();
+        var files = fileService.FormatFilesForPrompt();
 
-        var systemPrompt = _systemPromptService.GetAgentPrompt();
+        var systemPrompt = systemPromptService.GetAgentPrompt();
         if (!string.IsNullOrEmpty(context))
             systemPrompt += $"\n\n{context}";
         if (!string.IsNullOrEmpty(files))
@@ -200,7 +202,9 @@ public class DashScopeProvider : IAIProvider
         {
             messages.Add(new ChatMessageItem
             {
+#pragma warning disable CA1308 // API requires lowercase role names
                 Role = msg.Role.ToString().ToLowerInvariant(),
+#pragma warning restore CA1308
                 Content = msg.Content
             });
         }
@@ -243,7 +247,7 @@ public class DashScopeProvider : IAIProvider
             foreach (var word in words)
             {
                 yield return word + " ";
-                await Task.Delay(15);
+                await Task.Delay(15).ConfigureAwait(false);
             }
         }
     }
@@ -260,7 +264,7 @@ public class DashScopeProvider : IAIProvider
             {
                 yield return buffer;
                 buffer = "";
-                await Task.Delay(5);
+                await Task.Delay(5).ConfigureAwait(false);
             }
         }
         if (buffer.Length > 0)
@@ -294,16 +298,16 @@ public class DashScopeProvider : IAIProvider
 
         var request = new ChatCompletionRequest
         {
-            Model = _options.DefaultModel,
+            Model = options.DefaultModel,
             Messages = messages,
             Stream = false,
             Tools = tools,
             ToolChoice = "auto"
         };
 
-        var url = $"{_options.DashScopeBaseUrl}/chat/completions";
+        var url = $"{options.AlibabaCloudBaseUrl}/chat/completions";
         var content = new StringContent(
-            JsonSerializer.Serialize(request, DashScopeJsonContext.Default.ChatCompletionRequest),
+            JsonSerializer.Serialize(request, AlibabaCloudJsonContext.Default.ChatCompletionRequest),
             Encoding.UTF8,
             "application/json");
 
@@ -312,20 +316,27 @@ public class DashScopeProvider : IAIProvider
 
         var policy = RetryPolicies.GetApiPolicy();
         using var response = await policy.ExecuteAsync(
-            async ct => await _httpClient.SendAsync(httpRequest, ct),
-            cancellationToken);
-        var responseMessage = await response.Content.ReadAsStringAsync(cancellationToken);
+            async ct => await httpClient.SendAsync(httpRequest, ct).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+        var responseMessage = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
+        var responseString = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var chatResponse = JsonSerializer.Deserialize<ChatCompletionResponse>(responseString);
+
+        var message = chatResponse?.Choices?.FirstOrDefault()?.Message;
+        var thinkingContent = message?.ReasoningContent;
 
         var aiResponse = new AIResponse
         {
-            Content = chatResponse?.Choices?.FirstOrDefault()?.Message?.Content ?? "",
+            Content = message?.Content ?? "",
             InputTokens = chatResponse?.Usage?.PromptTokens ?? 0,
-            OutputTokens = chatResponse?.Usage?.CompletionTokens ?? 0
+            OutputTokens = chatResponse?.Usage?.CompletionTokens ?? 0,
+            Thinking = !string.IsNullOrEmpty(thinkingContent) ? thinkingContent : null
         };
+
+        // Store thinking for GetLastThinking()
+        _lastThinking = thinkingContent ?? string.Empty;
 
         // Extract tool calls if present
         if (chatResponse?.Choices?.FirstOrDefault()?.Message?.ToolCalls is not null)
@@ -360,53 +371,53 @@ public class DashScopeProvider : IAIProvider
 }
 
 /// <summary>
-/// Streaming chunk from DashScope API.
+/// Streaming chunk from Alibaba Cloud API.
 /// </summary>
-public class StreamChunk
+internal sealed class StreamChunk
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("object")]
     public string Object { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("created")]
     public long Created { get; set; }
-    
+
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("choices")]
     public List<StreamChoice>? Choices { get; set; }
 }
 
-public class StreamChoice
+internal sealed class StreamChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
-    
+
     [JsonPropertyName("delta")]
     public StreamDelta? Delta { get; set; }
-    
+
     [JsonPropertyName("finish_reason")]
     public string? FinishReason { get; set; }
     [JsonPropertyName("tool_calls")]
     public List<StreamToolCall>? ToolCalls { get; set; }
 }
 
-public class StreamDelta
+internal sealed class StreamDelta
 {
     [JsonPropertyName("role")]
     public string? Role { get; set; }
-    
+
     [JsonPropertyName("content")]
     public string? Content { get; set; }
-    
+
     [JsonPropertyName("reasoning_content")]
     public string? ReasoningContent { get; set; }
 }
 
-public class StreamToolCall
+internal sealed class StreamToolCall
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -421,7 +432,7 @@ public class StreamToolCall
     public StreamFunctionCall? Function { get; set; }
 }
 
-public class StreamFunctionCall
+internal sealed class StreamFunctionCall
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -433,7 +444,7 @@ public class StreamFunctionCall
 /// <summary>
 /// Request body for chat completion API.
 /// </summary>
-public class ChatCompletionRequest
+internal class ChatCompletionRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
@@ -454,16 +465,16 @@ public class ChatCompletionRequest
 /// <summary>
 /// A single message in the chat completion request.
 /// </summary>
-public class ChatMessageItem
+internal class ChatMessageItem
 {
     [JsonPropertyName("role")]
     public string Role { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
 }
 
-public class ChatCompletionResponse
+internal class ChatCompletionResponse
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -484,7 +495,7 @@ public class ChatCompletionResponse
     public ChatResponseUsage? Usage { get; set; }
 }
 
-public class ChatResponseChoice
+internal class ChatResponseChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -496,7 +507,7 @@ public class ChatResponseChoice
     public string? FinishReason { get; set; }
 }
 
-public class ChatResponseMessage
+internal class ChatResponseMessage
 {
     [JsonPropertyName("role")]
     public string? Role { get; set; }
@@ -504,11 +515,14 @@ public class ChatResponseMessage
     [JsonPropertyName("content")]
     public string? Content { get; set; }
 
+    [JsonPropertyName("reasoning_content")]
+    public string? ReasoningContent { get; set; }
+
     [JsonPropertyName("tool_calls")]
     public List<ResponseToolCall>? ToolCalls { get; set; }
 }
 
-public class ResponseToolCall
+internal class ResponseToolCall
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
@@ -520,7 +534,7 @@ public class ResponseToolCall
     public ResponseFunctionCall? Function { get; set; }
 }
 
-public class ResponseFunctionCall
+internal class ResponseFunctionCall
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -529,7 +543,7 @@ public class ResponseFunctionCall
     public string? Arguments { get; set; }
 }
 
-public class ChatResponseUsage
+internal class ChatResponseUsage
 {
     [JsonPropertyName("prompt_tokens")]
     public int PromptTokens { get; set; }

@@ -1,13 +1,14 @@
 ﻿namespace Pebbles.Plugins;
 
 using Pebbles.Models;
+using System.Security;
 using System.Text.Json;
 
 /// <summary>
 /// Base class for tool plugins. Inherit from this class to create a tool plugin.
 /// Provides helper methods and common functionality.
 /// </summary>
-public abstract class ToolPluginBase : IToolPlugin
+internal abstract class ToolPluginBase : IToolPlugin
 {
     /// <summary>
     /// Tool identifier (e.g., "my_custom_tool").
@@ -37,13 +38,13 @@ public abstract class ToolPluginBase : IToolPlugin
     /// <summary>
     /// Helper: Deserialize arguments from JSON.
     /// </summary>
-    protected T? DeserializeArgs<T>(string arguments) where T : class
+    protected static T? DeserializeArgs<T>(string arguments) where T : class
     {
         try
         {
             return JsonSerializer.Deserialize<T>(arguments);
         }
-        catch
+        catch (Exception ex) when (ex is JsonException || ex is ArgumentNullException)
         {
             return null;
         }
@@ -81,7 +82,7 @@ public abstract class ToolPluginBase : IToolPlugin
             var outputTask = process.StandardOutput.ReadToEndAsync();
             var errorTask = process.StandardError.ReadToEndAsync();
 
-            var completed = await Task.Run(() => process.WaitForExit(timeoutMs));
+            var completed = await Task.Run(() => process.WaitForExit(timeoutMs)).ConfigureAwait(false);
 
             if (!completed)
             {
@@ -89,12 +90,12 @@ public abstract class ToolPluginBase : IToolPlugin
                 return $"Error: Command timed out after {timeoutMs}ms";
             }
 
-            var output = await outputTask;
-            var error = await errorTask;
+            var output = await outputTask.ConfigureAwait(false);
+            var error = await errorTask.ConfigureAwait(false);
 
             return string.IsNullOrEmpty(error) ? output.Trim() : $"Error: {error.Trim()}\n{output.Trim()}";
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is InvalidOperationException || ex is ObjectDisposedException || ex is ArgumentOutOfRangeException)
         {
             return $"Error: {ex.Message}";
         }
@@ -113,7 +114,8 @@ public abstract class ToolPluginBase : IToolPlugin
 
             return File.ReadAllText(fullPath);
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return null;
         }
@@ -135,7 +137,8 @@ public abstract class ToolPluginBase : IToolPlugin
             File.WriteAllText(fullPath, content);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return false;
         }
@@ -162,7 +165,8 @@ public abstract class ToolPluginBase : IToolPlugin
                 .Where(n => n is not null)
                 .Cast<string>()];
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return null;
         }

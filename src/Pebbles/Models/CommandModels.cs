@@ -3,18 +3,18 @@ namespace Pebbles.Models;
 /// <summary>
 /// Represents a slash command definition.
 /// </summary>
-public record SlashCommand
+internal record SlashCommand
 {
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string Usage { get; init; } = string.Empty;
-    public Func<string[], ChatSession, CommandResult>? Handler { get; init; }
+    public Func<string[], ChatSession, Task<CommandResult>>? Handler { get; init; }
 }
 
 /// <summary>
 /// Result of executing a slash command.
 /// </summary>
-public record CommandResult
+internal record CommandResult
 {
     public bool Success { get; init; }
     public string? Message { get; init; }

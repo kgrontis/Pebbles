@@ -18,7 +18,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus", "qwen3-coder-plus"],
             InputCostPer1K = 0.0004m,
             OutputCostPer1K = 0.0024m,
             TokenEstimationMultiplier = 1.3,
@@ -40,7 +39,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "",
-            AvailableModels = ["qwen3.5-plus"]
         };
 
         // Act
@@ -48,7 +46,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("DefaultModel", result.FailureMessage);
+        Assert.Contains("DefaultModel", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -58,7 +56,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = null!,
-            AvailableModels = ["qwen3.5-plus"]
         };
 
         // Act
@@ -66,25 +63,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("DefaultModel", result.FailureMessage);
-    }
-
-    [Fact]
-    public void Validate_WithEmptyAvailableModels_ReturnsFailure()
-    {
-        // Arrange
-        var options = new PebblesOptions
-        {
-            DefaultModel = "qwen3.5-plus",
-            AvailableModels = []
-        };
-
-        // Act
-        var result = _validator.Validate(null, options);
-
-        // Assert
-        Assert.False(result.Succeeded);
-        Assert.Contains("AvailableModels", result.FailureMessage);
+        Assert.Contains("DefaultModel", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -94,7 +73,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             InputCostPer1K = -0.0004m
         };
 
@@ -103,7 +81,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("InputCostPer1K", result.FailureMessage);
+        Assert.Contains("InputCostPer1K", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -113,7 +91,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             OutputCostPer1K = -0.0024m
         };
 
@@ -122,7 +99,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("OutputCostPer1K", result.FailureMessage);
+        Assert.Contains("OutputCostPer1K", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -132,7 +109,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             TokenEstimationMultiplier = 0
         };
 
@@ -141,7 +117,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage);
+        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -151,7 +127,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             TokenEstimationMultiplier = -1.3
         };
 
@@ -160,7 +135,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage);
+        Assert.Contains("TokenEstimationMultiplier", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -170,7 +145,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             CompressionThreshold = -0.1
         };
 
@@ -179,7 +153,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("CompressionThreshold", result.FailureMessage);
+        Assert.Contains("CompressionThreshold", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -189,7 +163,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             CompressionThreshold = 1.5
         };
 
@@ -198,7 +171,7 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("CompressionThreshold", result.FailureMessage);
+        Assert.Contains("CompressionThreshold", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]
@@ -208,7 +181,6 @@ public class PebblesOptionsValidatorTests
         var options = new PebblesOptions
         {
             DefaultModel = "qwen3.5-plus",
-            AvailableModels = ["qwen3.5-plus"],
             KeepRecentMessages = 0
         };
 
@@ -217,7 +189,60 @@ public class PebblesOptionsValidatorTests
 
         // Assert
         Assert.False(result.Succeeded);
-        Assert.Contains("KeepRecentMessages", result.FailureMessage);
+        Assert.Contains("KeepRecentMessages", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_WithInvalidDefaultModel_ReturnsFailure()
+    {
+        // Arrange
+        var options = new PebblesOptions
+        {
+            DefaultModel = "non-existent-model"
+        };
+
+        // Act
+        var result = _validator.Validate(null, options);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Contains("DefaultModel", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_WithInvalidProvider_ReturnsFailure()
+    {
+        // Arrange
+        var options = new PebblesOptions
+        {
+            DefaultModel = "qwen3.5-plus",
+            Provider = "invalid-provider"
+        };
+
+        // Act
+        var result = _validator.Validate(null, options);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Contains("Provider", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_WithZeroTimeout_ReturnsFailure()
+    {
+        // Arrange
+        var options = new PebblesOptions
+        {
+            DefaultModel = "qwen3.5-plus",
+            HttpClientTimeoutSeconds = 0
+        };
+
+        // Act
+        var result = _validator.Validate(null, options);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Contains("HttpClientTimeoutSeconds", result.FailureMessage, StringComparison.InvariantCultureIgnoreCase);
     }
 
     [Fact]

@@ -1,23 +1,14 @@
 namespace Pebbles.Services;
 
 using Pebbles.Models;
+using System.Security.Cryptography;
 
 /// <summary>
 /// Mock AI provider for testing and development.
 /// </summary>
-public class MockAIProvider : IAIProvider
+internal class MockAIProvider() : IAIProvider
 {
-    private static readonly Random _rng = new();
     private readonly List<ChatMessage> _conversationHistory = [];
-    private readonly ContextManager _contextManager;
-    private readonly IFileService _fileService;
-
-    public MockAIProvider(ContextManager contextManager, IFileService fileService)
-    {
-        _contextManager = contextManager;
-        _fileService = fileService;
-    }
-
     private static readonly List<MockResponse> _responses =
     [
         new()
@@ -344,16 +335,16 @@ public class MockAIProvider : IAIProvider
 
     public MockResponse GetResponse(string userInput)
     {
-        var lower = userInput.ToLowerInvariant();
+        var upper = userInput.ToUpperInvariant();
         return _responses.FirstOrDefault(r =>
-            r.Keywords.Any(k => lower.Contains(k))) ?? _defaultResponse;
+            r.Keywords.Any(k => upper.Contains(k.ToUpperInvariant(), StringComparison.Ordinal))) ?? _defaultResponse;
     }
 
     public async IAsyncEnumerable<string> StreamResponseAsync(string userInput, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // Mock doesn't actually stream from API, just simulates it
         var response = GetResponse(userInput);
-        await foreach (var chunk in StreamContentAsync(response))
+        await foreach (var chunk in StreamContentAsync(response).ConfigureAwait(false))
         {
             yield return chunk;
         }
@@ -375,7 +366,7 @@ public class MockAIProvider : IAIProvider
         foreach (var word in words)
         {
             yield return word + " ";
-            await Task.Delay(_rng.Next(15, 45));
+            await Task.Delay(RandomNumberGenerator.GetInt32(15, 45)).ConfigureAwait(false);
         }
     }
 
@@ -391,7 +382,7 @@ public class MockAIProvider : IAIProvider
             {
                 yield return buffer;
                 buffer = "";
-                await Task.Delay(_rng.Next(5, 25));
+                await Task.Delay(RandomNumberGenerator.GetInt32(5, 25)).ConfigureAwait(false);
             }
         }
         if (buffer.Length > 0)

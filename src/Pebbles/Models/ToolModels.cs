@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Represents a tool definition sent to the AI model (OpenAI-compatible format).
 /// </summary>
-public class ToolDefinition
+internal class ToolDefinition
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "function";
@@ -17,7 +17,7 @@ public class ToolDefinition
 /// <summary>
 /// The function definition within a tool.
 /// </summary>
-public class FunctionDefinition
+internal class FunctionDefinition
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -32,22 +32,22 @@ public class FunctionDefinition
 /// <summary>
 /// JSON schema for tool parameters.
 /// </summary>
-public class ToolParameters
+internal class ToolParameters
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "object";
 
     [JsonPropertyName("properties")]
-    public Dictionary<string, ToolParameterProperty> Properties { get; set; } = new();
+    public Dictionary<string, ToolParameterProperty> Properties { get; set; } = [];
 
     [JsonPropertyName("required")]
-    public List<string> Required { get; set; } = new();
+    public List<string> Required { get; set; } = [];
 }
 
 /// <summary>
 /// A single parameter property in the schema.
 /// </summary>
-public class ToolParameterProperty
+internal class ToolParameterProperty
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "string";
@@ -62,7 +62,7 @@ public class ToolParameterProperty
 /// <summary>
 /// A tool call request from the AI model.
 /// </summary>
-public record ToolCall
+internal record ToolCall
 {
     public string Id { get; init; } = string.Empty;
     public string Type { get; init; } = "function";
@@ -72,7 +72,7 @@ public record ToolCall
 /// <summary>
 /// Function details within a tool call.
 /// </summary>
-public record ToolCallFunction
+internal record ToolCallFunction
 {
     public string Name { get; init; } = string.Empty;
     public string Arguments { get; init; } = string.Empty; // JSON string
@@ -81,7 +81,7 @@ public record ToolCallFunction
 /// <summary>
 /// A tool call result to send back to the AI model.
 /// </summary>
-public record ToolResult
+internal record ToolResult
 {
     public string ToolCallId { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
@@ -92,7 +92,7 @@ public record ToolResult
 /// <summary>
 /// Result of executing a tool.
 /// </summary>
-public record ToolExecutionResult
+internal record ToolExecutionResult
 {
     public bool Success { get; init; }
     public string Content { get; init; } = string.Empty;

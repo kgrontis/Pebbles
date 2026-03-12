@@ -5,7 +5,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interface for tools that can be executed by the AI assistant.
 /// </summary>
-public interface ITool
+internal interface ITool
 {
     /// <summary>
     /// The tool's name (used in API calls).

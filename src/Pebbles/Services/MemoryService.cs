@@ -1,13 +1,15 @@
 namespace Pebbles.Services;
 
+using Pebbles.Models;
+using System.Globalization;
+using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
-using Pebbles.Models;
 
 /// <summary>
 /// Implementation of memory management services.
 /// </summary>
-public class MemoryService : IMemoryService
+internal class MemoryService : IMemoryService
 {
     private readonly ISystemPromptService _promptService;
     private readonly IAIProvider _aiProvider;
@@ -39,7 +41,8 @@ public class MemoryService : IMemoryService
             _promptService.SaveUserMemory(updated);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return false;
         }
@@ -51,22 +54,22 @@ public class MemoryService : IMemoryService
         try
         {
             var existing = GetMemories();
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd");
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             var newEntry = $"\n- {memory} (added {timestamp})";
             
             // Find where to insert (before the closing comment if exists, or at end)
             var content = existing.TrimEnd();
-            if (content.Contains("<!-- Store your preferences"))
+            if (content.Contains("<!-- Store your preferences", StringComparison.InvariantCultureIgnoreCase))
             {
                 // Insert after the header comment
                 var lines = content.Split('\n').ToList();
-                var insertIndex = lines.FindIndex(l => l.TrimStart().StartsWith("<!--"));
+                var insertIndex = lines.FindIndex(l => l.TrimStart().StartsWith("<!--", StringComparison.InvariantCultureIgnoreCase));
                 if (insertIndex >= 0)
                 {
                     // Find end of comment
                     for (int i = insertIndex; i < lines.Count; i++)
                     {
-                        if (lines[i].Trim().EndsWith("-->"))
+                        if (lines[i].Trim().EndsWith("-->", StringComparison.InvariantCultureIgnoreCase))
                         {
                             insertIndex = i + 1;
                             break;
@@ -88,7 +91,8 @@ public class MemoryService : IMemoryService
             _promptService.SaveUserMemory(content);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return false;
         }
@@ -106,7 +110,8 @@ public class MemoryService : IMemoryService
             _promptService.SaveUserMemory(defaultContent);
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException || ex is PathTooLongException || ex is IOException
+        || ex is NotSupportedException || ex is SecurityException || ex is DirectoryNotFoundException || ex is FileNotFoundException)
         {
             return false;
         }
@@ -121,11 +126,11 @@ public class MemoryService : IMemoryService
             if (string.IsNullOrEmpty(conversationText))
                 return null;
 
-            var extractionPrompt = await LoadExtractionPrompt();
+            var extractionPrompt = await LoadExtractionPrompt().ConfigureAwait(false);
             var input = $"{extractionPrompt}\n\n<conversation>\n{conversationText}\n</conversation>\n\n<existing_memories>\n{GetMemories()}\n</existing_memories>\n\nExtract new memories that should be persisted.";
 
             var responseBuilder = new StringBuilder();
-            await foreach (var chunk in _aiProvider.StreamResponseAsync(input, cancellationToken))
+            await foreach (var chunk in _aiProvider.StreamResponseAsync(input, cancellationToken).ConfigureAwait(false))
             {
                 responseBuilder.Append(chunk);
             }
@@ -133,12 +138,12 @@ public class MemoryService : IMemoryService
             var response = responseBuilder.ToString();
             var extracted = ParseMemoriesFromResponse(response);
 
-            if (string.IsNullOrEmpty(extracted) || extracted.Contains("No new memories"))
+            if (string.IsNullOrEmpty(extracted) || extracted.Contains("No new memories", StringComparison.InvariantCultureIgnoreCase))
                 return null;
 
             return extracted;
         }
-        catch
+        catch(Exception ex) when (ex is ArgumentException || ex is InvalidOperationException || ex is ArgumentOutOfRangeException || ex is PathTooLongException)
         {
             return null;
         }
@@ -158,7 +163,7 @@ public class MemoryService : IMemoryService
                 ChatRole.Assistant => "Assistant",
                 _ => "System"
             };
-            sb.AppendLine($"[{role}]: {msg.Content}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[{role}]: {msg.Content}");
         }
         return sb.ToString();
     }
@@ -175,7 +180,7 @@ public class MemoryService : IMemoryService
 
         if (File.Exists(promptPath))
         {
-            return await File.ReadAllTextAsync(promptPath);
+            return await File.ReadAllTextAsync(promptPath).ConfigureAwait(false);
         }
 
         // Fallback prompt
@@ -205,7 +210,7 @@ Output in <memories> XML format.";
     /// </summary>
     private static string MergeMemories(string existing, string newMemories)
     {
-        if (string.IsNullOrWhiteSpace(existing) || existing.Contains("Store your preferences"))
+        if (string.IsNullOrWhiteSpace(existing) || existing.Contains("Store your preferences", StringComparison.InvariantCultureIgnoreCase))
         {
             return $"# User Memory\n\n{newMemories}";
         }

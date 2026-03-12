@@ -1,6 +1,7 @@
 namespace Pebbles.Services.Tools;
 
 using Pebbles.Models;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -8,7 +9,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to write content to files safely with backup support.
 /// </summary>
-public sealed class WriteFileTool : ITool
+internal sealed class WriteFileTool : ITool
 {
     private readonly string _workingDirectory;
     private readonly string _backupDirectory;
@@ -71,7 +72,7 @@ public sealed class WriteFileTool : ITool
 
     public async Task<ToolExecutionResult> ExecuteAsync(string arguments, CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask; // Keep async signature for interface compatibility
+        await Task.CompletedTask.ConfigureAwait(false); // Keep async signature for interface compatibility
 
         var args = JsonSerializer.Deserialize<WriteFileArgs>(arguments);
         if (args is null)
@@ -140,19 +141,19 @@ public sealed class WriteFileTool : ITool
             await policy.ExecuteAsync(
                 async ct =>
                 {
-                    await File.WriteAllTextAsync(tempPath, args.Content, Encoding.UTF8, ct);
+                    await File.WriteAllTextAsync(tempPath, args.Content, Encoding.UTF8, ct).ConfigureAwait(false);
                     File.Move(tempPath, fullPath, overwrite: true);
                 },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
             var result = new StringBuilder();
-            result.AppendLine($"✓ File written: {args.Path}");
-            result.AppendLine($"  Size: {args.Content.Length:N0} bytes");
-            result.AppendLine($"  Encoding: UTF-8");
+            result.AppendLine(CultureInfo.InvariantCulture, $"✓ File written: {args.Path}");
+            result.AppendLine(CultureInfo.InvariantCulture, $"  Size: {args.Content.Length:N0} bytes");
+            result.AppendLine(CultureInfo.InvariantCulture, $"  Encoding: UTF-8");
 
             if (backedUp && backupPath is not null)
             {
-                result.AppendLine($"  Backup: {backupPath}");
+                result.AppendLine(CultureInfo.InvariantCulture, $"  Backup: {backupPath}");
             }
 
             return new ToolExecutionResult
@@ -161,7 +162,7 @@ public sealed class WriteFileTool : ITool
                 Content = result.ToString().Trim()
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {
@@ -183,7 +184,7 @@ public sealed class WriteFileTool : ITool
         }
 
         // Generate backup path with timestamp
-        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         var relativePath = Path.GetRelativePath(_workingDirectory, filePath);
         var backupSubDir = Path.Combine(_backupDirectory, timestamp);
         var backupPath = Path.Combine(backupSubDir, relativePath);
@@ -277,7 +278,7 @@ public sealed class WriteFileTool : ITool
         return Path.IsPathRooted(path) ? path : Path.Combine(_workingDirectory, path);
     }
 
-    private record WriteFileArgs
+    private sealed record WriteFileArgs
     {
         [JsonPropertyName("path")]
         public string Path { get; init; } = string.Empty;

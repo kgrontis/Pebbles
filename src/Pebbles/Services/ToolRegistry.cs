@@ -6,15 +6,9 @@ namespace Pebbles.Services;
 /// <summary>
 /// Registry for managing and executing tools.
 /// </summary>
-public sealed class ToolRegistry : IToolRegistry
+internal sealed class ToolRegistry(IToolPluginLoader? pluginLoader) : IToolRegistry
 {
     private readonly Dictionary<string, ITool> _tools = new(StringComparer.OrdinalIgnoreCase);
-    private readonly IToolPluginLoader? _pluginLoader;
-
-    public ToolRegistry(IToolPluginLoader? pluginLoader)
-    {
-        _pluginLoader = pluginLoader;
-    }
 
     /// <summary>
     /// Registers a tool to be available for AI calls.
@@ -65,9 +59,9 @@ public sealed class ToolRegistry : IToolRegistry
 
         try
         {
-            return await tool.ExecuteAsync(arguments, cancellationToken);
+            return await tool.ExecuteAsync(arguments, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ToolExecutionResult
             {
@@ -83,10 +77,10 @@ public sealed class ToolRegistry : IToolRegistry
     /// </summary>
     public void LoadToolPlugins()
     {
-        if (_pluginLoader is null)
+        if (pluginLoader is null)
             return;
 
-        var result = _pluginLoader.LoadPlugins();
+        var result = pluginLoader.LoadPlugins();
 
         foreach (var plugin in result.Plugins)
         {

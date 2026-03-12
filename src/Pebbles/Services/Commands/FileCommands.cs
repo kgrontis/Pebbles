@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles file-related commands: /read, /files, /clearfiles.
 /// </summary>
-public sealed class FileCommands(IFileService fileService)
+internal sealed class FileCommands(IFileService fileService)
 {
     public CommandResult HandleRead(string[] args)
     {

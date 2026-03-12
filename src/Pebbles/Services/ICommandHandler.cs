@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles slash command parsing and execution.
 /// </summary>
-public interface ICommandHandler
+internal interface ICommandHandler
 {
     /// <summary>
     /// Available commands for display.

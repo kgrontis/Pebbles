@@ -4,7 +4,7 @@ namespace Pebbles.Services;
 /// Manages system prompts for the AI assistant.
 /// Supports loading from files, environment variable overrides, and user memory.
 /// </summary>
-public class SystemPromptService : ISystemPromptService
+internal class SystemPromptService : ISystemPromptService
 {
     private const string DefaultPromptDir = ".pebbles/agent";
     private const string DefaultUserMemoryPath = ".pebbles/user_memory.md";
@@ -19,6 +19,9 @@ public class SystemPromptService : ISystemPromptService
     /// <param name="baseDir">The base directory for resolving prompt paths. Defaults to current directory.</param>
     public SystemPromptService(string? baseDir = null)
     {
+        // Ensure global agent directory exists with default prompts
+        AgentInitializer.EnsureInitialized();
+
         _baseDir = baseDir ?? Directory.GetCurrentDirectory();
         _promptDir = ResolvePromptDirectory();
         _userMemoryPath = ResolveUserMemoryPath();
@@ -170,7 +173,7 @@ public class SystemPromptService : ISystemPromptService
     /// </summary>
     private static bool IsSwitchValue(string value)
     {
-        var lower = value.Trim().ToLowerInvariant();
-        return lower is "true" or "false" or "0" or "1";
+        var upper = value.Trim().ToUpperInvariant();
+        return upper is "TRUE" or "FALSE" or "0" or "1";
     }
 }

@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles memory-related commands: /remember, /memory.
 /// </summary>
-public sealed class MemoryCommands(IMemoryService? memoryService)
+internal sealed class MemoryCommands(IMemoryService? memoryService)
 {
     public CommandResult HandleRemember(string[] args)
     {
@@ -47,7 +47,7 @@ public sealed class MemoryCommands(IMemoryService? memoryService)
 
         var memories = memoryService.GetMemories();
 
-        if (string.IsNullOrWhiteSpace(memories) || memories.Contains("Store your preferences"))
+        if (string.IsNullOrWhiteSpace(memories) || memories.Contains("Store your preferences", StringComparison.InvariantCultureIgnoreCase))
         {
             return CommandResult.OkWithMarkup("""
 

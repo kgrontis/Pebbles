@@ -1,11 +1,12 @@
 namespace Pebbles.Services;
 
 using Pebbles.Models;
+using System.Collections.ObjectModel;
 
 /// <summary>
 /// Provides context compaction services for managing conversation history.
 /// </summary>
-public interface ICompressionService
+internal interface ICompressionService
 {
     /// <summary>
     /// Determines whether compaction should be triggered based on current token usage.
@@ -25,7 +26,7 @@ public interface ICompressionService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The result of the compaction operation.</returns>
     Task<CompressionResult> CompactAsync(
-        List<ChatMessage> messages,
+        Collection<ChatMessage> messages,
         int keepRecentCount = 6,
         string? previousSummary = null,
         CancellationToken cancellationToken = default);
