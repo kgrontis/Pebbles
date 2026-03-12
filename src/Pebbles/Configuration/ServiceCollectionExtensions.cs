@@ -22,7 +22,7 @@ internal static class ServiceCollectionExtensions
     public static IServiceCollection AddPebblesServices(
         this IServiceCollection services,
         IConfiguration configuration,
-        string? providerOverride = null)
+        IUserSettingsService? userSettingsService = null)
     {
         // Configure options with validation
         services.AddOptions<PebblesOptions>()
@@ -31,13 +31,13 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<PebblesOptions>, PebblesOptionsValidator>();
 
         // Register options as singleton for services that need it directly
-        // Apply provider override if specified (from user settings)
-        services.AddSingleton<PebblesOptions>(sp =>
+        // Apply provider from user settings if available
+        services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<PebblesOptions>>().Value;
-            if (providerOverride is not null)
+            if (userSettingsService is not null)
             {
-                options.Provider = providerOverride;
+                options.Provider = userSettingsService.Settings.Provider;
             }
             return options;
         });
@@ -51,7 +51,7 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<ISystemPromptService, SystemPromptService>();
 
         // Register AI provider based on configuration
-        services.AddAIProvider(configuration);
+        services.AddAIProvider(configuration, userSettingsService);
 
         // Register tool services
         services.AddTools();
@@ -95,7 +95,8 @@ internal static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddAIProvider(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IUserSettingsService? userSettingsService = null)
     {
         var providerSection = configuration.GetSection($"{PebblesOptions.SectionName}:Provider");
         var provider = providerSection.Value ?? ProviderNames.Mock;
@@ -109,7 +110,7 @@ internal static class ServiceCollectionExtensions
                 {
                     var options = sp.GetRequiredService<PebblesOptions>();
                     client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
-                    var apiKey = GetApiKey(options.AlibabaCloudApiKey, "ALIBABA_CLOUD_API_KEY") ?? throw new InvalidOperationException(
+                    var apiKey = GetApiKey(userSettingsService, options.AlibabaCloudApiKey, "alibabacloud", "ALIBABA_CLOUD_API_KEY") ?? throw new InvalidOperationException(
                             "Alibaba Cloud API key not configured. Set ALIBABA_CLOUD_API_KEY environment variable " +
                             "or add AlibabaCloudApiKey to appsettings.json");
                     client.DefaultRequestHeaders.Authorization =
@@ -137,7 +138,7 @@ internal static class ServiceCollectionExtensions
                 {
                     var options = sp.GetRequiredService<PebblesOptions>();
                     client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
-                    var apiKey = GetApiKey(options.OpenAiApiKey, "OPENAI_API_KEY");
+                    var apiKey = GetApiKey(userSettingsService, options.OpenAiApiKey, "openai", "OPENAI_API_KEY");
                     if (apiKey is null)
                     {
                         throw new InvalidOperationException(
@@ -166,7 +167,7 @@ internal static class ServiceCollectionExtensions
                 {
                     var options = sp.GetRequiredService<PebblesOptions>();
                     client.Timeout = TimeSpan.FromSeconds(options.HttpClientTimeoutSeconds);
-                    var apiKey = GetApiKey(options.AnthropicApiKey, "ANTHROPIC_API_KEY");
+                    var apiKey = GetApiKey(userSettingsService, options.AnthropicApiKey, "anthropic", "ANTHROPIC_API_KEY");
                     if (apiKey is null)
                     {
                         throw new InvalidOperationException(
@@ -204,17 +205,32 @@ internal static class ServiceCollectionExtensions
         provider.Equals(ProviderNames.DashScope, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Gets an API key from config or environment variable, with empty string validation.
+    /// Gets an API key from user settings, config, or environment variable.
+    /// Priority: user settings file > config value > environment variable.
     /// </summary>
-    private static string? GetApiKey(string? configValue, string envVarName)
+    private static string? GetApiKey(
+        IUserSettingsService? userSettingsService,
+        string? configValue,
+        string providerName,
+        string envVarName)
     {
-        // Check config value first (must be non-empty)
+        // First check user settings file (persisted from previous sessions)
+        if (userSettingsService is not null)
+        {
+            var storedKey = userSettingsService.GetApiKey(providerName);
+            if (!string.IsNullOrWhiteSpace(storedKey))
+            {
+                return storedKey;
+            }
+        }
+
+        // Then check config value (must be non-empty)
         if (!string.IsNullOrWhiteSpace(configValue))
         {
             return configValue;
         }
 
-        // Fall back to environment variable (must be non-empty)
+        // Finally fall back to environment variable (must be non-empty)
         var envValue = Environment.GetEnvironmentVariable(envVarName);
         return string.IsNullOrWhiteSpace(envValue) ? null : envValue;
     }

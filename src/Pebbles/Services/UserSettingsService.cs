@@ -6,7 +6,7 @@ using System.Text.Json;
 /// <summary>
 /// File-based user settings storage.
 /// Settings are stored in ~/.pebbles/user_settings.json
-/// API keys are stored as environment variables.
+/// API keys are stored per provider in the settings file.
 /// </summary>
 internal class UserSettingsService : IUserSettingsService
 {
@@ -52,21 +52,30 @@ internal class UserSettingsService : IUserSettingsService
 
     public string? GetApiKey(string provider)
     {
+        // First check if we have a key stored in settings for this provider
+        if (_settings.ApiKeys.TryGetValue(provider, out var storedKey) && !string.IsNullOrEmpty(storedKey))
+        {
+            return storedKey;
+        }
+
+        // Fall back to environment variable
         if (!ProviderEnvVars.TryGetValue(provider, out var envVar))
             return null;
 
-        // First check environment variable
-        var apiKey = Environment.GetEnvironmentVariable(envVar);
-        return apiKey;
+        return Environment.GetEnvironmentVariable(envVar);
     }
 
-    public void SetApiKey(string provider, string apiKey)
+    public async Task SetApiKey(string provider, string apiKey)
     {
-        if (!ProviderEnvVars.TryGetValue(provider, out var envVar))
-            return;
+        // Store in settings dictionary for persistence
+        _settings.ApiKeys[provider] = apiKey;
+        await SaveAsync().ConfigureAwait(false);
 
-        // Store as environment variable for the current process
-        Environment.SetEnvironmentVariable(envVar, apiKey);
+        // Also set as environment variable for the current process
+        if (ProviderEnvVars.TryGetValue(provider, out var envVar))
+        {
+            Environment.SetEnvironmentVariable(envVar, apiKey);
+        }
     }
 
     public async Task SetProviderAsync(string provider)
@@ -106,4 +115,5 @@ internal class UserSettingsService : IUserSettingsService
             return new UserSettings();
         }
     }
+
 }

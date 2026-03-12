@@ -19,4 +19,9 @@ internal sealed class UserSettings
     /// The default model to use for the selected provider.
     /// </summary>
     public string? DefaultModel { get; set; }
+
+    /// <summary>
+    /// API keys for each provider (key = provider name, value = API key).
+    /// </summary>
+    public Dictionary<string, string> ApiKeys { get; set; } = new();
 }

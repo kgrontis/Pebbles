@@ -1,6 +1,7 @@
 namespace Pebbles.UI;
 
 using Spectre.Console;
+using Pebbles.Fonts;
 using Pebbles.Models;
 using Pebbles.Services;
 
@@ -15,11 +16,14 @@ internal partial class ChatRenderer : IChatRenderer
     {
         AnsiConsole.Clear();
 
-        // Calculate available width (leave margin for borders)
-        var maxWidth = Math.Min(Console.WindowWidth - 4, 80);
+        // Render FIGlet logo
+        var figlet = new FigletText(FigletFontLoader.Slant, "Pebbles")
+        {
+            Color = Color.MediumSpringGreen
+        };
+        AnsiConsole.Write(figlet);
 
-        // Compact banner that fits on smaller screens
-        AnsiConsole.MarkupLine($"[bold mediumspringgreen]⬡ Pebbles[/] [dim]— AI coding assistant[/]");
+        AnsiConsole.MarkupLine("[dim]— AI coding assistant in your terminal[/]");
         AnsiConsole.WriteLine();
 
         // Status line
@@ -32,7 +36,7 @@ internal partial class ChatRenderer : IChatRenderer
 
         // Bottom border
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"  [dim grey]{new string('─', Math.Max(0, maxWidth - 4))}[/]");
+        AnsiConsole.MarkupLine($"  [dim grey]{new string('─', Math.Max(0, Console.WindowWidth - 12))}[/]");
         AnsiConsole.WriteLine();
     }
 

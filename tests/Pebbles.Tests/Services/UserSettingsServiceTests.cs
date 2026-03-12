@@ -1,6 +1,7 @@
 using Pebbles.Services;
 
 namespace Pebbles.Tests.Services;
+
 public class UserSettingsServiceTests : IDisposable
 {
     private readonly string _testDirectory;
@@ -110,7 +111,7 @@ public class UserSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public void SetApiKey_SetsEnvironmentVariable()
+    public async Task SetApiKey_SetsEnvironmentVariable()
     {
         // Arrange
         var service = CreateService();
@@ -119,7 +120,7 @@ public class UserSettingsServiceTests : IDisposable
         try
         {
             // Act
-            service.SetApiKey("openai", testKey);
+            await service.SetApiKey("openai", testKey);
 
             // Assert
             Assert.Equal(testKey, Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
@@ -193,6 +194,101 @@ public class UserSettingsServiceTests : IDisposable
 
         // Assert
         Assert.Null(apiKey);
+    }
+
+    [Fact]
+    public async Task SetApiKey_PersistsKeyToSettings()
+    {
+        // Arrange
+        var service = CreateService();
+        var testKey = "persisted-test-key";
+
+        try
+        {
+            // Act
+            await service.SetApiKey("alibabacloud", testKey);
+
+            // Create a new service instance to verify persistence
+            var service2 = CreateService();
+
+            // Assert
+            Assert.Equal(testKey, service2.Settings.ApiKeys["alibabacloud"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ALIBABA_CLOUD_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public async Task GetApiKey_ReturnsStoredKey_WhenProviderMatches()
+    {
+        // Arrange
+        var service = CreateService();
+        var testKey = "stored-openai-key";
+
+        try
+        {
+            // Act
+            await service.SetApiKey("openai", testKey);
+
+            // Create new instance to test retrieval
+            var service2 = CreateService();
+            var retrievedKey = service2.GetApiKey("openai");
+
+            // Assert
+            Assert.Equal(testKey, retrievedKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public async Task SetApiKey_StoresMultipleProviderKeys()
+    {
+        // Arrange
+        var service = CreateService();
+
+        try
+        {
+            // Act
+            await service.SetApiKey("alibabacloud", "alibaba-key");
+            await service.SetApiKey("openai", "openai-key");
+            await service.SetApiKey("anthropic", "anthropic-key");
+
+            // Create new instance to test persistence
+            var service2 = CreateService();
+
+            // Assert - all keys should be stored
+            Assert.Equal("alibaba-key", service2.GetApiKey("alibabacloud"));
+            Assert.Equal("openai-key", service2.GetApiKey("openai"));
+            Assert.Equal("anthropic-key", service2.GetApiKey("anthropic"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ALIBABA_CLOUD_API_KEY", null);
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public async Task SetProviderAsync_KeepsAllApiKeys()
+    {
+        // Arrange
+        var service = CreateService();
+        await service.SetApiKey("alibabacloud", "alibaba-key");
+        await service.SetApiKey("openai", "openai-key");
+
+        // Act
+        await service.SetProviderAsync("openai");
+
+        // Assert - both keys should still be available
+        Assert.Equal("openai", service.Settings.Provider);
+        Assert.Equal("alibaba-key", service.GetApiKey("alibabacloud"));
+        Assert.Equal("openai-key", service.GetApiKey("openai"));
     }
 
     private TestableUserSettingsService CreateService()

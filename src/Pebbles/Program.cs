@@ -43,8 +43,8 @@ services.AddLogging(builder =>
 services.AddSingleton<IUserSettingsService>(userSettingsService);
 services.AddSingleton<IProviderSetupService>(providerSetupService);
 
-// Add all Pebbles services with the configured provider
-services.AddPebblesServices(configuration, userSettingsService.Settings.Provider);
+// Add all Pebbles services with user settings
+services.AddPebblesServices(configuration, userSettingsService);
 
 using var serviceProvider = services.BuildServiceProvider();
 

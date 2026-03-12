@@ -36,6 +36,17 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
         // Check if setup is already completed with a valid API key
         if (userSettingsService.Settings.SetupCompleted && userSettingsService.HasValidApiKey())
         {
+            // Show welcome back message with current provider
+            var provider = Providers.FirstOrDefault(p =>
+                string.Equals(p.Name, userSettingsService.Settings.Provider, StringComparison.OrdinalIgnoreCase));
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold cyan]Welcome back to Pebbles![/]");
+            if (provider != default)
+            {
+                AnsiConsole.MarkupLine($"[dim]Using {provider.DisplayName}. Change with /provider command.[/]");
+            }
+            AnsiConsole.WriteLine();
             return true;
         }
 
@@ -51,39 +62,58 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
         AnsiConsole.MarkupLine("[dim]Your AI coding assistant in the terminal.[/]");
         AnsiConsole.WriteLine();
 
-        // Show provider selection
+        // Show provider selection with indicator for providers that have keys stored
+        var choices = Providers.Select(p =>
+        {
+            var hasKey = userSettingsService.GetApiKey(p.Name) is not null;
+            return hasKey ? $"{p.DisplayName} [dim](key saved)[/]" : p.DisplayName;
+        }).ToList();
+
         var selectedProvider = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[bold]Select your AI provider:[/]")
                 .PageSize(10)
-                .AddChoices(Providers.Select(p => p.DisplayName)));
+                .AddChoices(choices));
 
-        // Find the provider key
-        var (Name, DisplayName, EnvVar) = Providers.First(p => p.DisplayName == selectedProvider);
+        // Find the provider key (strip the " (key saved)" suffix if present)
+        var selectedIndex = choices.IndexOf(selectedProvider);
+        var (Name, DisplayName, EnvVar) = Providers[selectedIndex];
+
+        // Check if this provider already has a stored key
+        var existingKey = userSettingsService.GetApiKey(Name);
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold]You selected:[/] [cyan]{DisplayName}[/]");
-        AnsiConsole.WriteLine();
 
-        // Prompt for API key
-        AnsiConsole.MarkupLine($"[dim]Enter your API key (it will be stored as the {EnvVar} environment variable):[/]");
-        AnsiConsole.MarkupLine("[dim]The key will be stored for this session. For persistence, set the environment variable in your shell profile.[/]");
-        AnsiConsole.WriteLine();
-
-        var apiKey = PromptForApiKey();
-
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (existingKey is not null)
         {
-            AnsiConsole.MarkupLine("[yellow]No API key provided. You can set it later using the environment variable or /provider command.[/]");
+            // Provider already has a key - just switch to it
+            await userSettingsService.SetProviderAsync(Name).ConfigureAwait(false);
+            AnsiConsole.MarkupLine($"[green]✓ Switched to {DisplayName}.[/]");
+            AnsiConsole.MarkupLine("[dim]Your saved API key will be used.[/]");
         }
         else
         {
-            userSettingsService.SetApiKey(Name, apiKey);
-            AnsiConsole.MarkupLine("[green]✓ API key configured for this session.[/]");
-        }
+            // Need to prompt for API key
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[dim]Enter your API key for {DisplayName}:[/]");
+            AnsiConsole.WriteLine();
 
-        // Save the provider selection
-        await userSettingsService.SetProviderAsync(Name).ConfigureAwait(false);
+            var apiKey = PromptForApiKey();
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                AnsiConsole.MarkupLine("[yellow]No API key provided. You can set it later using the /provider command.[/]");
+            }
+            else
+            {
+                await userSettingsService.SetApiKey(Name, apiKey).ConfigureAwait(false);
+                AnsiConsole.MarkupLine("[green]✓ API key saved.[/]");
+            }
+
+            // Save the provider selection
+            await userSettingsService.SetProviderAsync(Name).ConfigureAwait(false);
+        }
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[green]✓ Setup complete![/]");
@@ -110,6 +140,7 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
         }
     }
 
+#pragma warning disable CA1303 // Literal string for password masking is intentional
     private static string ReadPassword()
     {
         var chars = new List<char>();
@@ -124,12 +155,17 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
             if (key.Key == ConsoleKey.Backspace && chars.Count > 0)
             {
                 chars.RemoveAt(chars.Count - 1);
+                // Remove the last asterisk from display
+                Console.Write("\b \b");
             }
             else if (key.Key != ConsoleKey.Backspace)
             {
                 chars.Add(key.KeyChar);
+                // Show asterisk for each character typed
+                Console.Write('*');
             }
         }
         return new string([.. chars]);
     }
+#pragma warning restore CA1303
 }

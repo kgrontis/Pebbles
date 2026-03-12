@@ -27,7 +27,7 @@ internal interface IUserSettingsService
     /// Sets the API key for the specified provider.
     /// Stores it as an environment variable.
     /// </summary>
-    void SetApiKey(string provider, string apiKey);
+    Task SetApiKey(string provider, string apiKey);
 
     /// <summary>
     /// Sets the current provider and saves settings.
