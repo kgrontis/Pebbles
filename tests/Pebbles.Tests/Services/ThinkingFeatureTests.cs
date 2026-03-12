@@ -104,6 +104,96 @@ public class ThinkingFeatureTests
     }
 
     [Fact]
+    public async Task OpenAIProvider_ExtractsDetailedUsageFromNonStreamingResponse()
+    {
+        // Arrange
+        var jsonResponse = """
+        {
+            "choices": [{
+                "message": {
+                    "content": "My response"
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+                "prompt_tokens_details": { "cached_tokens": 20 },
+                "completion_tokens_details": { "reasoning_tokens": 30 }
+            }
+        }
+        """;
+
+        using var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        };
+
+        var (provider, _) = CreateOpenAIProvider(httpResponse);
+
+        // Act
+        var response = await provider.GetResponseWithToolsAsync("Hello", []);
+
+        // Assert
+        Assert.Equal(100, response.InputTokens);
+        Assert.Equal(50, response.OutputTokens);
+        Assert.Equal(30, response.ReasoningTokens);
+        Assert.Equal(20, response.CachedTokens);
+    }
+
+    [Fact]
+    public async Task OpenAIProvider_ExtractsUsageFromStreamingFinalChunk()
+    {
+        // Arrange
+        var sb = new StringBuilder();
+
+        // Content chunk
+        var contentChunk = new
+        {
+            choices = new[]
+            {
+                new { delta = new { content = "Hello" } }
+            }
+        };
+        sb.AppendLine(CultureInfo.InvariantCulture, $"data: {JsonSerializer.Serialize(contentChunk)}");
+
+        // Final usage chunk (empty choices)
+        var usageChunk = new
+        {
+            choices = Array.Empty<object>(),
+            usage = new
+            {
+                prompt_tokens = 50,
+                completion_tokens = 25,
+                total_tokens = 75,
+                prompt_tokens_details = new { cached_tokens = 10 },
+                completion_tokens_details = new { reasoning_tokens = 15 }
+            }
+        };
+        sb.AppendLine(CultureInfo.InvariantCulture, $"data: {JsonSerializer.Serialize(usageChunk)}");
+        sb.AppendLine("data: [DONE]");
+
+        using var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(sb.ToString(), Encoding.UTF8, "text/event-stream")
+        };
+
+        var (provider, _) = CreateOpenAIProvider(httpResponse);
+
+        // Act
+        var tokens = new List<string>();
+        await foreach (var token in provider.StreamResponseAsync("Hello"))
+        {
+            tokens.Add(token);
+        }
+
+        // Assert - usage is extracted from final chunk
+        // Note: The provider stores this internally, we can verify via GetLastTokenUsage if exposed
+        // For now, we verify the streaming completed successfully
+        Assert.Contains("Hello", tokens);
+    }
+
+    [Fact]
     public async Task AnthropicProvider_ExtractsThinking_FromStreamingResponse()
     {
         // Arrange

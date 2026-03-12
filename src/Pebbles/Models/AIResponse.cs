@@ -12,4 +12,14 @@ internal record AIResponse
     public int InputTokens { get; init; }
     public int OutputTokens { get; init; }
     public string? Thinking { get; init; }
+
+    /// <summary>
+    /// Tokens used for reasoning/thinking (from completion_tokens_details.reasoning_tokens).
+    /// </summary>
+    public int ReasoningTokens { get; init; }
+
+    /// <summary>
+    /// Tokens read from cache (from prompt_tokens_details.cached_tokens).
+    /// </summary>
+    public int CachedTokens { get; init; }
 }

@@ -18,6 +18,8 @@ public class AIResponseTests
         Assert.Equal(0, response.InputTokens);
         Assert.Equal(0, response.OutputTokens);
         Assert.Null(response.Thinking);
+        Assert.Equal(0, response.ReasoningTokens);
+        Assert.Equal(0, response.CachedTokens);
     }
 
     [Fact]
@@ -60,6 +62,23 @@ public class AIResponseTests
 
         // Assert
         Assert.Equal("I thought about this carefully...", response.Thinking);
+    }
+
+    [Fact]
+    public void AIResponse_StoresDetailedTokenCounts()
+    {
+        // Act
+        var response = new AIResponse
+        {
+            InputTokens = 100,
+            OutputTokens = 50,
+            ReasoningTokens = 30,
+            CachedTokens = 20
+        };
+
+        // Assert
+        Assert.Equal(30, response.ReasoningTokens);
+        Assert.Equal(20, response.CachedTokens);
     }
 
     [Fact]

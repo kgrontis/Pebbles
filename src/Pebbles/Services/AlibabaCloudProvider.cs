@@ -32,6 +32,8 @@ internal sealed class AlibabaCloudProvider(
     private readonly Stopwatch _thinkingStopwatch = new();
     private int _lastInputTokens;
     private int _lastOutputTokens;
+    private int _lastReasoningTokens;
+    private int _lastCachedTokens;
 
     /// <summary>
     /// Adds a message to the conversation history.
@@ -78,7 +80,9 @@ internal sealed class AlibabaCloudProvider(
         {
             Model = options.DefaultModel,
             Messages = messages,
-            Stream = true
+            Stream = true,
+            StreamOptions = new StreamOptions { IncludeUsage = true },
+            EnableThinking = true
         };
 
         var url = $"{options.AlibabaCloudBaseUrl}/chat/completions";
@@ -135,7 +139,17 @@ internal sealed class AlibabaCloudProvider(
             }
 
             if (chunk?.Choices is null || chunk.Choices.Count == 0)
+            {
+                // Check for usage in final chunk (choices may be empty)
+                if (chunk?.Usage is not null)
+                {
+                    _lastInputTokens = chunk.Usage.PromptTokens;
+                    _lastOutputTokens = chunk.Usage.CompletionTokens;
+                    _lastReasoningTokens = chunk.Usage.CompletionTokensDetails?.ReasoningTokens ?? 0;
+                    _lastCachedTokens = chunk.Usage.PromptTokensDetails?.CachedTokens ?? 0;
+                }
                 continue;
+            }
 
             var delta = chunk.Choices[0].Delta;
 
@@ -332,7 +346,9 @@ internal sealed class AlibabaCloudProvider(
             Content = message?.Content ?? "",
             InputTokens = chatResponse?.Usage?.PromptTokens ?? 0,
             OutputTokens = chatResponse?.Usage?.CompletionTokens ?? 0,
-            Thinking = !string.IsNullOrEmpty(thinkingContent) ? thinkingContent : null
+            Thinking = !string.IsNullOrEmpty(thinkingContent) ? thinkingContent : null,
+            ReasoningTokens = chatResponse?.Usage?.CompletionTokensDetails?.ReasoningTokens ?? 0,
+            CachedTokens = chatResponse?.Usage?.PromptTokensDetails?.CachedTokens ?? 0
         };
 
         // Store thinking for GetLastThinking()
@@ -389,6 +405,9 @@ internal sealed class StreamChunk
 
     [JsonPropertyName("choices")]
     public List<StreamChoice>? Choices { get; set; }
+
+    [JsonPropertyName("usage")]
+    public ChatResponseUsage? Usage { get; set; }
 }
 
 internal sealed class StreamChoice
@@ -455,6 +474,12 @@ internal class ChatCompletionRequest
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
 
+    [JsonPropertyName("stream_options")]
+    public StreamOptions? StreamOptions { get; set; }
+
+    [JsonPropertyName("enable_thinking")]
+    public bool? EnableThinking { get; set; }
+
     [JsonPropertyName("tools")]
     public IReadOnlyList<ToolDefinition>? Tools { get; set; }
 
@@ -463,7 +488,17 @@ internal class ChatCompletionRequest
 }
 
 /// <summary>
+/// Streaming options for chat completion requests.
+/// </summary>
+internal class StreamOptions
+{
+    [JsonPropertyName("include_usage")]
+    public bool IncludeUsage { get; set; }
+}
+
+/// <summary>
 /// A single message in the chat completion request.
+/// Supports both string content and multi-part content (for images).
 /// </summary>
 internal class ChatMessageItem
 {
@@ -471,7 +506,76 @@ internal class ChatMessageItem
     public string Role { get; set; } = string.Empty;
 
     [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
+    public object Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Creates a message with text content.
+    /// </summary>
+    public static ChatMessageItem Text(string role, string content) => new()
+    {
+        Role = role,
+        Content = content
+    };
+
+    /// <summary>
+    /// Creates a message with multi-part content (text and images).
+    /// </summary>
+    public static ChatMessageItem MultiPart(string role, List<ContentPart> parts) => new()
+    {
+        Role = role,
+        Content = parts
+    };
+}
+
+/// <summary>
+/// A part of multi-part message content.
+/// </summary>
+internal class ContentPart
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "text"; // "text" or "image_url"
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("image_url")]
+    public ImageUrl? ImageUrl { get; set; }
+
+    /// <summary>
+    /// Creates a text content part.
+    /// </summary>
+    public static ContentPart FromText(string text) => new()
+    {
+        Type = "text",
+        Text = text
+    };
+
+    /// <summary>
+    /// Creates an image content part from a URL.
+    /// </summary>
+    public static ContentPart FromImageUrl(string url) => new()
+    {
+        Type = "image_url",
+        ImageUrl = new ImageUrl { Url = url }
+    };
+
+    /// <summary>
+    /// Creates an image content part from base64 data.
+    /// </summary>
+    public static ContentPart FromBase64Image(string base64Data, string mimeType = "image/jpeg") => new()
+    {
+        Type = "image_url",
+        ImageUrl = new ImageUrl { Url = $"data:{mimeType};base64,{base64Data}" }
+    };
+}
+
+/// <summary>
+/// Image URL container for image content parts.
+/// </summary>
+internal class ImageUrl
+{
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
 }
 
 internal class ChatCompletionResponse
@@ -553,6 +657,30 @@ internal class ChatResponseUsage
 
     [JsonPropertyName("total_tokens")]
     public int TotalTokens { get; set; }
+
+    [JsonPropertyName("prompt_tokens_details")]
+    public PromptTokensDetails? PromptTokensDetails { get; set; }
+
+    [JsonPropertyName("completion_tokens_details")]
+    public CompletionTokensDetails? CompletionTokensDetails { get; set; }
+}
+
+/// <summary>
+/// Detailed breakdown of prompt tokens.
+/// </summary>
+internal class PromptTokensDetails
+{
+    [JsonPropertyName("cached_tokens")]
+    public int CachedTokens { get; set; }
+}
+
+/// <summary>
+/// Detailed breakdown of completion tokens.
+/// </summary>
+internal class CompletionTokensDetails
+{
+    [JsonPropertyName("reasoning_tokens")]
+    public int ReasoningTokens { get; set; }
 }
 
 // Extension method for synchronous enumeration

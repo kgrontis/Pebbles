@@ -24,6 +24,8 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
     private readonly Stopwatch _thinkingStopwatch = new();
     private int _lastInputTokens;
     private int _lastOutputTokens;
+    private int _lastReasoningTokens;
+    private int _lastCachedTokens;
 
     public void AddToHistory(ChatMessage message)
     {
@@ -71,7 +73,8 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
         {
             Model = options.DefaultModel,
             Messages = messages,
-            Stream = true
+            Stream = true,
+            StreamOptions = new OpenAiStreamOptions { IncludeUsage = true }
         };
 
         var url = $"{GetBaseUrl()}/chat/completions";
@@ -105,7 +108,18 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
             if (string.IsNullOrEmpty(data)) continue;
 
             var chunk = JsonSerializer.Deserialize<OpenAiChatChunk>(data);
-            if (chunk?.Choices is null || chunk.Choices.Count == 0) continue;
+            if (chunk?.Choices is null || chunk.Choices.Count == 0)
+            {
+                // Check for usage in final chunk (choices may be empty)
+                if (chunk?.Usage is not null)
+                {
+                    _lastInputTokens = chunk.Usage.PromptTokens;
+                    _lastOutputTokens = chunk.Usage.CompletionTokens;
+                    _lastReasoningTokens = chunk.Usage.CompletionTokensDetails?.ReasoningTokens ?? 0;
+                    _lastCachedTokens = chunk.Usage.PromptTokensDetails?.CachedTokens ?? 0;
+                }
+                continue;
+            }
 
             var delta = chunk.Choices[0].Delta;
 
@@ -123,16 +137,26 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
             }
 
             // Regular content
-            if (!string.IsNullOrEmpty(delta?.Content))
+            if (delta?.Content is not null)
             {
-                if (isThinking)
+                string? contentStr = delta.Content switch
                 {
-                    isThinking = false;
-                    _thinkingStopwatch.Stop();
-                    _thinkingDuration = _thinkingStopwatch.Elapsed;
+                    string s => s,
+                    JsonElement el when el.ValueKind == JsonValueKind.String => el.GetString(),
+                    _ => null
+                };
+
+                if (!string.IsNullOrEmpty(contentStr))
+                {
+                    if (isThinking)
+                    {
+                        isThinking = false;
+                        _thinkingStopwatch.Stop();
+                        _thinkingDuration = _thinkingStopwatch.Elapsed;
+                    }
+                    responseContent.Append(contentStr);
+                    yield return contentStr;
                 }
-                responseContent.Append(delta.Content);
-                yield return delta.Content;
             }
         }
 
@@ -197,12 +221,21 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
         var message = chatResponse?.Choices?.FirstOrDefault()?.Message;
         var thinkingContent = message?.ReasoningContent;
 
+        // Extract content - handle both string and multi-part content
+        var messageContent = message?.Content switch
+        {
+            string s => s,
+            _ => ""
+        };
+
         var aiResponse = new AIResponse
         {
-            Content = message?.Content ?? "",
+            Content = messageContent,
             InputTokens = chatResponse?.Usage?.PromptTokens ?? 0,
             OutputTokens = chatResponse?.Usage?.CompletionTokens ?? 0,
-            Thinking = !string.IsNullOrEmpty(thinkingContent) ? thinkingContent : null
+            Thinking = !string.IsNullOrEmpty(thinkingContent) ? thinkingContent : null,
+            ReasoningTokens = chatResponse?.Usage?.CompletionTokensDetails?.ReasoningTokens ?? 0,
+            CachedTokens = chatResponse?.Usage?.PromptTokensDetails?.CachedTokens ?? 0
         };
 
         // Store thinking for GetLastThinking()
@@ -249,11 +282,20 @@ internal class OpenAiChatRequest
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
 
+    [JsonPropertyName("stream_options")]
+    public OpenAiStreamOptions? StreamOptions { get; set; }
+
     [JsonPropertyName("tools")]
     public List<OpenAiTool>? Tools { get; set; }
 
     [JsonPropertyName("tool_choice")]
     public string? ToolChoice { get; set; }
+}
+
+internal class OpenAiStreamOptions
+{
+    [JsonPropertyName("include_usage")]
+    public bool IncludeUsage { get; set; }
 }
 
 internal class OpenAiMessage
@@ -262,10 +304,76 @@ internal class OpenAiMessage
     public string Role { get; set; } = string.Empty;
 
     [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
+    public object Content { get; set; } = string.Empty;
 
     [JsonPropertyName("reasoning_content")]
     public string? ReasoningContent { get; set; }
+
+    /// <summary>
+    /// Creates a message with text content.
+    /// </summary>
+    public static OpenAiMessage Text(string role, string content) => new()
+    {
+        Role = role,
+        Content = content
+    };
+
+    /// <summary>
+    /// Creates a message with multi-part content (text and images).
+    /// </summary>
+    public static OpenAiMessage MultiPart(string role, List<OpenAiContentPart> parts) => new()
+    {
+        Role = role,
+        Content = parts
+    };
+}
+
+/// <summary>
+/// A part of multi-part message content for OpenAI.
+/// </summary>
+internal class OpenAiContentPart
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "text"; // "text" or "image_url"
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("image_url")]
+    public OpenAiImageUrl? ImageUrl { get; set; }
+
+    /// <summary>
+    /// Creates a text content part.
+    /// </summary>
+    public static OpenAiContentPart FromText(string text) => new()
+    {
+        Type = "text",
+        Text = text
+    };
+
+    /// <summary>
+    /// Creates an image content part from a URL.
+    /// </summary>
+    public static OpenAiContentPart FromImageUrl(string url) => new()
+    {
+        Type = "image_url",
+        ImageUrl = new OpenAiImageUrl { Url = url }
+    };
+
+    /// <summary>
+    /// Creates an image content part from base64 data.
+    /// </summary>
+    public static OpenAiContentPart FromBase64Image(string base64Data, string mimeType = "image/jpeg") => new()
+    {
+        Type = "image_url",
+        ImageUrl = new OpenAiImageUrl { Url = $"data:{mimeType};base64,{base64Data}" }
+    };
+}
+
+internal class OpenAiImageUrl
+{
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
 }
 
 internal class OpenAiTool
@@ -279,6 +387,18 @@ internal class OpenAiTool
 
 internal class OpenAiChatResponse
 {
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("object")]
+    public string? Object { get; set; }
+
+    [JsonPropertyName("created")]
+    public long Created { get; set; }
+
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     [JsonPropertyName("choices")]
     public List<OpenAiChoice>? Choices { get; set; }
 
@@ -288,17 +408,38 @@ internal class OpenAiChatResponse
 
 internal class OpenAiChatChunk
 {
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("object")]
+    public string? Object { get; set; }
+
+    [JsonPropertyName("created")]
+    public long Created { get; set; }
+
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
     [JsonPropertyName("choices")]
     public List<OpenAiChoice>? Choices { get; set; }
+
+    [JsonPropertyName("usage")]
+    public OpenAiUsage? Usage { get; set; }
 }
 
 internal class OpenAiChoice
 {
+    [JsonPropertyName("index")]
+    public int Index { get; set; }
+
     [JsonPropertyName("message")]
     public OpenAiMessage? Message { get; set; }
 
     [JsonPropertyName("delta")]
     public OpenAiMessage? Delta { get; set; }
+
+    [JsonPropertyName("finish_reason")]
+    public string? FinishReason { get; set; }
 }
 
 internal class OpenAiUsage
@@ -308,6 +449,27 @@ internal class OpenAiUsage
 
     [JsonPropertyName("completion_tokens")]
     public int CompletionTokens { get; set; }
+
+    [JsonPropertyName("total_tokens")]
+    public int TotalTokens { get; set; }
+
+    [JsonPropertyName("prompt_tokens_details")]
+    public OpenAiPromptTokensDetails? PromptTokensDetails { get; set; }
+
+    [JsonPropertyName("completion_tokens_details")]
+    public OpenAiCompletionTokensDetails? CompletionTokensDetails { get; set; }
+}
+
+internal class OpenAiPromptTokensDetails
+{
+    [JsonPropertyName("cached_tokens")]
+    public int CachedTokens { get; set; }
+}
+
+internal class OpenAiCompletionTokensDetails
+{
+    [JsonPropertyName("reasoning_tokens")]
+    public int ReasoningTokens { get; set; }
 }
 
 #endregion
