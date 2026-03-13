@@ -1,7 +1,6 @@
 namespace Pebbles.Tests.Services.Tools;
 
 using Pebbles.Services.Tools;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 
 [Collection("WriteFileToolTests")]
@@ -10,6 +9,7 @@ public class WriteFileToolTests : IDisposable
     private bool isDisposed;
     private readonly WriteFileTool _tool;
     private readonly string _testDirectory;
+    private object _testLock = new();
 
     public WriteFileToolTests()
     {
@@ -121,16 +121,15 @@ public class WriteFileToolTests : IDisposable
         // Arrange - use a unique file name to avoid conflicts with parallel tests
         var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
 
-        // Write and close the file explicitly to release the handle
-        await using (var fs = File.Create(testFile))
-        await using (var writer = new StreamWriter(fs))
-        {
-            await writer.WriteAsync("Original content");
-        }
+        // Write file and ensure it's fully closed
+        await File.WriteAllTextAsync(testFile, "Original content");
 
-        // Small delay to ensure file handle is fully released on Windows CI
-        // Windows Defender may scan newly created files
-        await Task.Delay(200);
+        // Force a small delay and GC to ensure file handles are released
+        // Windows Defender on CI may scan newly created files
+        await Task.Delay(100);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Task.Delay(100);
 
         var args = new { path = testFile, content = "New content", createBackup = true };
         var arguments = JsonSerializer.Serialize(args);
@@ -159,16 +158,15 @@ public class WriteFileToolTests : IDisposable
         // Arrange - use a unique file name to avoid conflicts with parallel tests
         var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
 
-        // Write and close the file explicitly to release the handle
-        await using (var fs = File.Create(testFile))
-        await using (var writer = new StreamWriter(fs))
-        {
-            await writer.WriteAsync("Original content");
-        }
+        // Write file and ensure it's fully closed
+        await File.WriteAllTextAsync(testFile, "Original content");
 
-        // Small delay to ensure file handle is fully released on Windows CI
-        // Windows Defender may scan newly created files
-        await Task.Delay(200);
+        // Force a small delay and GC to ensure file handles are released
+        // Windows Defender on CI may scan newly created files
+        await Task.Delay(100);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Task.Delay(100);
 
         var args = new { path = testFile, content = "New content", createBackup = false };
         var arguments = JsonSerializer.Serialize(args);
