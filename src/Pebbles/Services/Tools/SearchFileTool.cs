@@ -7,7 +7,7 @@ using Pebbles.Models;
 /// <summary>
 /// Tool to search for text patterns in files (grep-style search).
 /// </summary>
-internal sealed class SearchFilesTool() : ITool
+public sealed class SearchFilesTool() : ITool
 {
     public string Name => "search_files";
 

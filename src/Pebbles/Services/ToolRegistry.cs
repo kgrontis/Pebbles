@@ -6,7 +6,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Registry for managing and executing tools.
 /// </summary>
-internal sealed class ToolRegistry(IToolPluginLoader? pluginLoader) : IToolRegistry
+public sealed class ToolRegistry(IToolPluginLoader? pluginLoader) : IToolRegistry
 {
     private readonly Dictionary<string, ITool> _tools = new(StringComparer.OrdinalIgnoreCase);
 

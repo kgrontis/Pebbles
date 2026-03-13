@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles chat-related commands: /clear, /history, /cost, /exit.
 /// </summary>
-internal sealed class ChatCommands
+public sealed class ChatCommands
 {
     public static CommandResult HandleClear(ChatSession session)
     {

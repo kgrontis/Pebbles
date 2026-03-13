@@ -12,7 +12,7 @@ using System.Security;
 /// <summary>
 /// Compiles and loads C# plugins using Roslyn.
 /// </summary>
-internal sealed class RoslynPluginService
+public sealed class RoslynPluginService
 {
     private readonly string _workingDirectory;
 
@@ -261,7 +261,7 @@ file sealed class PluginLoadContext : AssemblyLoadContext
 /// <summary>
 /// Exception thrown when plugin compilation fails.
 /// </summary>
-internal sealed class CompilationException : Exception
+public sealed class CompilationException : Exception
 {
     public CompilationException(string message) : base(message)
     {

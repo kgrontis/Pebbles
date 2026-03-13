@@ -5,7 +5,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interface for managing context compression and memory extraction.
 /// </summary>
-internal interface IContextManagementService
+public interface IContextManagementService
 {
     /// <summary>
     /// Checks if auto-compression should be triggered and performs it if needed.

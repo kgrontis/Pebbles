@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 /// <summary>
 /// Provides AI responses with streaming support.
 /// </summary>
-internal interface IAIProvider
+public interface IAIProvider
 {
     /// <summary>
     /// Gets a response for the given user input (non-streaming).

@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to execute shell commands safely.
 /// </summary>
-internal sealed class ShellTool : ITool
+public sealed class ShellTool : ITool
 {
     private readonly string _workingDirectory;
 

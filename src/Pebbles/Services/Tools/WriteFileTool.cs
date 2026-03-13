@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to write content to files safely with backup support.
 /// </summary>
-internal sealed class WriteFileTool : ITool
+public sealed class WriteFileTool : ITool
 {
     private readonly string _workingDirectory;
     private readonly string _backupDirectory;

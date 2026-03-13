@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 /// <summary>
 /// Mock AI provider for testing and development.
 /// </summary>
-internal class MockAIProvider() : IAIProvider
+public class MockAIProvider() : IAIProvider
 {
     private readonly List<ChatMessage> _conversationHistory = [];
     private static readonly List<MockResponse> _responses =

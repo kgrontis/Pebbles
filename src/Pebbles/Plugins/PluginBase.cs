@@ -3,7 +3,7 @@ namespace Pebbles.Plugins;
 /// <summary>
 /// Base class for C# plugins. Inherit from this class to create a plugin.
 /// </summary>
-internal abstract class PluginBase
+public abstract class PluginBase
 {
     /// <summary>
     /// Plugin identifier (e.g., "my-tools").
@@ -171,7 +171,7 @@ internal abstract class PluginBase
     /// </summary>
     protected static string ResolvePath(string path)
     {
-        if (path.StartsWith('~'))
+        if (!string.IsNullOrWhiteSpace(path) && path.StartsWith('~'))
         {
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return Path.Combine(home, path[2..]);

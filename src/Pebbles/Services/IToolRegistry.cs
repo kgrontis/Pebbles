@@ -5,7 +5,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interface for managing and executing tools.
 /// </summary>
-internal interface IToolRegistry
+public interface IToolRegistry
 {
     /// <summary>
     /// Registers a tool to be available for AI calls.

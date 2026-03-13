@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Tool to list directory contents.
 /// </summary>
-internal sealed class ListDirectoryTool(IFileService fileService) : ITool
+public sealed class ListDirectoryTool(IFileService fileService) : ITool
 {
     public string Name => "list_directory";
 

@@ -5,7 +5,7 @@ namespace Pebbles.Models;
 /// <summary>
 /// Response from AI that may include tool calls.
 /// </summary>
-internal record AIResponse
+public record AIResponse
 {
     public string Content { get; init; } = string.Empty;
     public Collection<ToolCall> ToolCalls { get; init; } = [];

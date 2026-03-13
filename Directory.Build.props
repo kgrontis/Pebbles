@@ -4,15 +4,26 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-all</AnalysisLevel>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    
+
     <!-- Enable nullable reference types by default -->
     <Nullable>enable</Nullable>
-    
+
     <!-- Enable XML documentation warnings -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CA1515</NoWarn>
+    
+    <!-- Suppress warnings for internal/public types and XML documentation -->
+    <!-- CA1515: Consider making public types internal - We want public types -->
+    <!-- CS1591: Missing XML comment for publicly visible type or member -->
+    <!-- CA2227: Change property to be read-only - We use mutable DTOs -->
+    <!-- CA1002: Change List<T> to use Collection<T> - We use List<T> for DTOs -->
+    <!-- CA1056: Change string URI to System.Uri - We use string for DTOs -->
+    <!-- CA1720: Identifier contains type name - Common in DTOs -->
+    <!-- CA1024: Use properties where appropriate - We use methods intentionally -->
+    <!-- CA1062: Validate parameter is non-null - We trust caller for internal use -->
+    <!-- CA1054: Change string url to System.Uri - We use string for DTOs -->
+    <NoWarn>$(NoWarn);CA1515;CS1591;CA2227;CA1002;CA1056;CA1720;CA1024;CA1062;CA1054</NoWarn>
   </PropertyGroup>
-  
+
   <!-- Coverage settings for test projects -->
   <PropertyGroup Condition="$(MSBuildProjectName.Contains('Tests'))">
     <CollectCoverage>true</CollectCoverage>

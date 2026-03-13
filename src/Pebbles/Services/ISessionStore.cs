@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Interface for session storage and retrieval.
 /// </summary>
-internal interface ISessionStore
+public interface ISessionStore
 {
     /// <summary>
     /// Saves a session to persistent storage.

@@ -7,7 +7,7 @@ using Pebbles.Services;
 /// <summary>
 /// Handles user input with history, command autocomplete, and file picker.
 /// </summary>
-internal class InputHandler(ICommandHandler commandHandler, IFileService fileService) : IInputHandler
+public class InputHandler(ICommandHandler commandHandler, IFileService fileService) : IInputHandler
 {
     private static readonly System.Buffers.SearchValues<char> s_myChars = System.Buffers.SearchValues.Create("/\\");
     private readonly List<string> _inputHistory = [];
@@ -641,7 +641,7 @@ internal class InputHandler(ICommandHandler commandHandler, IFileService fileSer
         catch (IOException) { }
     }
 
-    private enum AutocompleteType
+    public enum AutocompleteType
     {
         None,
         Command,

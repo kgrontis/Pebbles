@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Service for managing user settings persisted across sessions.
 /// </summary>
-internal interface IUserSettingsService
+public interface IUserSettingsService
 {
     /// <summary>
     /// Gets the current user settings.

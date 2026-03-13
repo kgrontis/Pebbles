@@ -19,7 +19,7 @@ using Pebbles.Models;
 /// <param name="contextManager">The context manager for managing conversation context.</param>
 /// <param name="fileService">The file service for file operations.</param>
 /// <param name="systemPromptService">The system prompt service for generating system prompts.</param>
-internal sealed class AlibabaCloudProvider(
+public sealed class AlibabaCloudProvider(
     HttpClient httpClient,
     PebblesOptions options,
     ContextManager contextManager,
@@ -389,7 +389,7 @@ internal sealed class AlibabaCloudProvider(
 /// <summary>
 /// Streaming chunk from Alibaba Cloud API.
 /// </summary>
-internal sealed class StreamChunk
+public sealed class StreamChunk
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -410,7 +410,7 @@ internal sealed class StreamChunk
     public ChatResponseUsage? Usage { get; set; }
 }
 
-internal sealed class StreamChoice
+public sealed class StreamChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -424,7 +424,7 @@ internal sealed class StreamChoice
     public List<StreamToolCall>? ToolCalls { get; set; }
 }
 
-internal sealed class StreamDelta
+public sealed class StreamDelta
 {
     [JsonPropertyName("role")]
     public string? Role { get; set; }
@@ -436,7 +436,7 @@ internal sealed class StreamDelta
     public string? ReasoningContent { get; set; }
 }
 
-internal sealed class StreamToolCall
+public sealed class StreamToolCall
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -451,7 +451,7 @@ internal sealed class StreamToolCall
     public StreamFunctionCall? Function { get; set; }
 }
 
-internal sealed class StreamFunctionCall
+public sealed class StreamFunctionCall
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -463,7 +463,7 @@ internal sealed class StreamFunctionCall
 /// <summary>
 /// Request body for chat completion API.
 /// </summary>
-internal class ChatCompletionRequest
+public class ChatCompletionRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
@@ -490,7 +490,7 @@ internal class ChatCompletionRequest
 /// <summary>
 /// Streaming options for chat completion requests.
 /// </summary>
-internal class StreamOptions
+public class StreamOptions
 {
     [JsonPropertyName("include_usage")]
     public bool IncludeUsage { get; set; }
@@ -500,7 +500,7 @@ internal class StreamOptions
 /// A single message in the chat completion request.
 /// Supports both string content and multi-part content (for images).
 /// </summary>
-internal class ChatMessageItem
+public class ChatMessageItem
 {
     [JsonPropertyName("role")]
     public string Role { get; set; } = string.Empty;
@@ -530,7 +530,7 @@ internal class ChatMessageItem
 /// <summary>
 /// A part of multi-part message content.
 /// </summary>
-internal class ContentPart
+public class ContentPart
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "text"; // "text" or "image_url"
@@ -572,13 +572,13 @@ internal class ContentPart
 /// <summary>
 /// Image URL container for image content parts.
 /// </summary>
-internal class ImageUrl
+public class ImageUrl
 {
     [JsonPropertyName("url")]
     public string Url { get; set; } = string.Empty;
 }
 
-internal class ChatCompletionResponse
+public class ChatCompletionResponse
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -599,7 +599,7 @@ internal class ChatCompletionResponse
     public ChatResponseUsage? Usage { get; set; }
 }
 
-internal class ChatResponseChoice
+public class ChatResponseChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -611,7 +611,7 @@ internal class ChatResponseChoice
     public string? FinishReason { get; set; }
 }
 
-internal class ChatResponseMessage
+public class ChatResponseMessage
 {
     [JsonPropertyName("role")]
     public string? Role { get; set; }
@@ -626,7 +626,7 @@ internal class ChatResponseMessage
     public List<ResponseToolCall>? ToolCalls { get; set; }
 }
 
-internal class ResponseToolCall
+public class ResponseToolCall
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
@@ -638,7 +638,7 @@ internal class ResponseToolCall
     public ResponseFunctionCall? Function { get; set; }
 }
 
-internal class ResponseFunctionCall
+public class ResponseFunctionCall
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -647,7 +647,7 @@ internal class ResponseFunctionCall
     public string? Arguments { get; set; }
 }
 
-internal class ChatResponseUsage
+public class ChatResponseUsage
 {
     [JsonPropertyName("prompt_tokens")]
     public int PromptTokens { get; set; }
@@ -668,7 +668,7 @@ internal class ChatResponseUsage
 /// <summary>
 /// Detailed breakdown of prompt tokens.
 /// </summary>
-internal class PromptTokensDetails
+public class PromptTokensDetails
 {
     [JsonPropertyName("cached_tokens")]
     public int CachedTokens { get; set; }
@@ -677,7 +677,7 @@ internal class PromptTokensDetails
 /// <summary>
 /// Detailed breakdown of completion tokens.
 /// </summary>
-internal class CompletionTokensDetails
+public class CompletionTokensDetails
 {
     [JsonPropertyName("reasoning_tokens")]
     public int ReasoningTokens { get; set; }

@@ -3,7 +3,7 @@ namespace Pebbles.Models;
 /// <summary>
 /// Represents a slash command definition.
 /// </summary>
-internal record SlashCommand
+public record SlashCommand
 {
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
@@ -14,7 +14,7 @@ internal record SlashCommand
 /// <summary>
 /// Result of executing a slash command.
 /// </summary>
-internal record CommandResult
+public record CommandResult
 {
     public bool Success { get; init; }
     public string? Message { get; init; }

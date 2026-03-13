@@ -5,7 +5,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interface for executing tool calls from AI responses.
 /// </summary>
-internal interface IToolExecutionService
+public interface IToolExecutionService
 {
     /// <summary>
     /// Executes the tool calling loop for an AI response.

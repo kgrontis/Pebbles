@@ -3,7 +3,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Interactive model picker for selecting AI models.
 /// </summary>
-internal interface IModelPicker
+public interface IModelPicker
 {
     /// <summary>
     /// Shows an interactive model picker and returns the selected model.
@@ -17,7 +17,7 @@ internal interface IModelPicker
 /// <summary>
 /// Console-based interactive model picker.
 /// </summary>
-internal class ModelPicker : IModelPicker
+public class ModelPicker : IModelPicker
 {
     public string? PickModel(IReadOnlyList<string> models, string currentModel)
     {

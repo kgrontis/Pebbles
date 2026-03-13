@@ -8,7 +8,7 @@ using System.Text.Json;
 /// Settings are stored in ~/.pebbles/user_settings.json
 /// API keys are stored per provider in the settings file.
 /// </summary>
-internal class UserSettingsService : IUserSettingsService
+public class UserSettingsService : IUserSettingsService
 {
     private readonly string _settingsFilePath;
     private readonly JsonSerializerOptions _jsonOptions;

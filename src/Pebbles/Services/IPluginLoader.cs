@@ -6,7 +6,7 @@ using Pebbles.Plugins;
 /// <summary>
 /// Interface for plugin loading.
 /// </summary>
-internal interface IPluginLoader
+public interface IPluginLoader
 {
     /// <summary>
     /// Currently loaded plugins.

@@ -6,7 +6,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles compression-related commands: /compress, /autocompress.
 /// </summary>
-internal sealed class CompressionCommands(ICompressionService? compressionService, PebblesOptions options)
+public sealed class CompressionCommands(ICompressionService? compressionService, PebblesOptions options)
 {
     public async Task<CommandResult> HandleCompress(ChatSession session)
     {

@@ -6,7 +6,7 @@ using Pebbles.Services;
 /// <summary>
 /// Handles all chat UI rendering.
 /// </summary>
-internal interface IChatRenderer
+public interface IChatRenderer
 {
     /// <summary>
     /// Renders the welcome screen.

@@ -6,7 +6,7 @@ using Pebbles.Services;
 /// <summary>
 /// Handles user input with history and autocomplete.
 /// </summary>
-internal interface IInputHandler
+public interface IInputHandler
 {
     /// <summary>
     /// Reads user input, returns null to exit.
@@ -17,7 +17,7 @@ internal interface IInputHandler
 /// <summary>
 /// Suggestion item for autocomplete.
 /// </summary>
-internal interface ISuggestion
+public interface ISuggestion
 {
     string DisplayText { get; }
     string InsertText { get; }
@@ -28,7 +28,7 @@ internal interface ISuggestion
 /// <summary>
 /// Command suggestion wrapper.
 /// </summary>
-internal class CommandSuggestion(SlashCommand command) : ISuggestion
+public class CommandSuggestion(SlashCommand command) : ISuggestion
 {
     public string DisplayText => command.Name;
     public string InsertText => command.Name;
@@ -39,7 +39,7 @@ internal class CommandSuggestion(SlashCommand command) : ISuggestion
 /// <summary>
 /// File/folder suggestion wrapper.
 /// </summary>
-internal class FileSuggestion(FileItem item) : ISuggestion
+public class FileSuggestion(FileItem item) : ISuggestion
 {
     public string DisplayText => item.IsDirectory ? $"{item.Name}/" : item.Name;
     public string InsertText => item.Path + (item.IsDirectory ? "/" : "");

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Represents a tool definition sent to the AI model (OpenAI-compatible format).
 /// </summary>
-internal class ToolDefinition
+public class ToolDefinition
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "function";
@@ -17,7 +17,7 @@ internal class ToolDefinition
 /// <summary>
 /// The function definition within a tool.
 /// </summary>
-internal class FunctionDefinition
+public class FunctionDefinition
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -32,7 +32,7 @@ internal class FunctionDefinition
 /// <summary>
 /// JSON schema for tool parameters.
 /// </summary>
-internal class ToolParameters
+public class ToolParameters
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "object";
@@ -47,7 +47,7 @@ internal class ToolParameters
 /// <summary>
 /// A single parameter property in the schema.
 /// </summary>
-internal class ToolParameterProperty
+public class ToolParameterProperty
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "string";
@@ -62,7 +62,7 @@ internal class ToolParameterProperty
 /// <summary>
 /// A tool call request from the AI model.
 /// </summary>
-internal record ToolCall
+public record ToolCall
 {
     public string Id { get; init; } = string.Empty;
     public string Type { get; init; } = "function";
@@ -72,7 +72,7 @@ internal record ToolCall
 /// <summary>
 /// Function details within a tool call.
 /// </summary>
-internal record ToolCallFunction
+public record ToolCallFunction
 {
     public string Name { get; init; } = string.Empty;
     public string Arguments { get; init; } = string.Empty; // JSON string
@@ -81,7 +81,7 @@ internal record ToolCallFunction
 /// <summary>
 /// A tool call result to send back to the AI model.
 /// </summary>
-internal record ToolResult
+public record ToolResult
 {
     public string ToolCallId { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
@@ -92,7 +92,7 @@ internal record ToolResult
 /// <summary>
 /// Result of executing a tool.
 /// </summary>
-internal record ToolExecutionResult
+public record ToolExecutionResult
 {
     public bool Success { get; init; }
     public string Content { get; init; } = string.Empty;

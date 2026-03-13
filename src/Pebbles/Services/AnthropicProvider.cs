@@ -16,7 +16,7 @@ namespace Pebbles.Services;
 /// </remarks>
 /// <param name="httpClient">The HttpClient configured with appropriate headers and timeout.</param>
 /// <param name="options">The Pebbles configuration options.</param>
-internal sealed class AnthropicProvider(HttpClient httpClient, PebblesOptions options) : IAIProvider
+public sealed class AnthropicProvider(HttpClient httpClient, PebblesOptions options) : IAIProvider
 {
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
@@ -290,7 +290,7 @@ internal sealed class AnthropicProvider(HttpClient httpClient, PebblesOptions op
 
 #region Anthropic DTOs
 
-internal class AnthropicRequest
+public class AnthropicRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
@@ -308,7 +308,7 @@ internal class AnthropicRequest
     public List<AnthropicTool>? Tools { get; set; }
 }
 
-internal class AnthropicMessage
+public class AnthropicMessage
 {
     [JsonPropertyName("role")]
     public string Role { get; set; } = string.Empty;
@@ -317,7 +317,7 @@ internal class AnthropicMessage
     public string Content { get; set; } = string.Empty;
 }
 
-internal class AnthropicTool
+public class AnthropicTool
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -329,7 +329,7 @@ internal class AnthropicTool
     public ToolParameters? InputSchema { get; set; }
 }
 
-internal class AnthropicResponse
+public class AnthropicResponse
 {
     [JsonPropertyName("content")]
     public List<AnthropicContentBlock>? Content { get; set; }
@@ -338,7 +338,7 @@ internal class AnthropicResponse
     public AnthropicUsage? Usage { get; set; }
 }
 
-internal class AnthropicContentBlock
+public class AnthropicContentBlock
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
@@ -367,14 +367,14 @@ internal class AnthropicContentBlock
     } : null;
 }
 
-internal class AnthropicToolUse
+public class AnthropicToolUse
 {
     public string? Id { get; set; }
     public string? Name { get; set; }
     public JsonElement? Input { get; set; }
 }
 
-internal class AnthropicStreamChunk
+public class AnthropicStreamChunk
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
@@ -392,13 +392,13 @@ internal class AnthropicStreamChunk
     public AnthropicMessageStart? Message { get; set; }
 }
 
-internal class AnthropicMessageStart
+public class AnthropicMessageStart
 {
     [JsonPropertyName("usage")]
     public AnthropicUsage? Usage { get; set; }
 }
 
-internal class AnthropicDelta
+public class AnthropicDelta
 {
     [JsonPropertyName("type")]
     public string? Type { get; set; }
@@ -410,7 +410,7 @@ internal class AnthropicDelta
     public string? Thinking { get; set; }
 }
 
-internal class AnthropicUsage
+public class AnthropicUsage
 {
     [JsonPropertyName("input_tokens")]
     public int InputTokens { get; set; }

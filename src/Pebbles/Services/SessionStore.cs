@@ -6,7 +6,7 @@ using System.Text.Json;
 /// <summary>
 /// File-based session storage implementation.
 /// </summary>
-internal sealed class SessionStore : ISessionStore
+public sealed class SessionStore : ISessionStore
 {
     private readonly string _sessionsDirectory;
     private readonly string _lastActiveFile;

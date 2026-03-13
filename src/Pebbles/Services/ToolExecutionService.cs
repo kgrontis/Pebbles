@@ -7,7 +7,7 @@ using System.Text.Json;
 /// <summary>
 /// Service for executing tool calls from AI responses.
 /// </summary>
-internal sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry toolRegistry) : IToolExecutionService
+public sealed class ToolExecutionService(IAIProvider aiProvider, IToolRegistry toolRegistry) : IToolExecutionService
 {
 
     /// <inheritdoc />

@@ -16,7 +16,7 @@ namespace Pebbles.Services;
 /// </remarks>
 /// <param name="httpClient">The HttpClient configured with appropriate headers and timeout.</param>
 /// <param name="options">The Pebbles configuration options.</param>
-internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions options) : IAIProvider
+public sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions options) : IAIProvider
 {
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
@@ -271,7 +271,7 @@ internal sealed class OpenAIProvider(HttpClient httpClient, PebblesOptions optio
 
 #region OpenAI DTOs
 
-internal class OpenAiChatRequest
+public class OpenAiChatRequest
 {
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
@@ -292,13 +292,13 @@ internal class OpenAiChatRequest
     public string? ToolChoice { get; set; }
 }
 
-internal class OpenAiStreamOptions
+public class OpenAiStreamOptions
 {
     [JsonPropertyName("include_usage")]
     public bool IncludeUsage { get; set; }
 }
 
-internal class OpenAiMessage
+public class OpenAiMessage
 {
     [JsonPropertyName("role")]
     public string Role { get; set; } = string.Empty;
@@ -331,7 +331,7 @@ internal class OpenAiMessage
 /// <summary>
 /// A part of multi-part message content for OpenAI.
 /// </summary>
-internal class OpenAiContentPart
+public class OpenAiContentPart
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "text"; // "text" or "image_url"
@@ -370,13 +370,13 @@ internal class OpenAiContentPart
     };
 }
 
-internal class OpenAiImageUrl
+public class OpenAiImageUrl
 {
     [JsonPropertyName("url")]
     public string Url { get; set; } = string.Empty;
 }
 
-internal class OpenAiTool
+public class OpenAiTool
 {
     [JsonPropertyName("type")]
     public string Type { get; set; } = "function";
@@ -385,7 +385,7 @@ internal class OpenAiTool
     public FunctionDefinition? Function { get; set; }
 }
 
-internal class OpenAiChatResponse
+public class OpenAiChatResponse
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
@@ -406,7 +406,7 @@ internal class OpenAiChatResponse
     public OpenAiUsage? Usage { get; set; }
 }
 
-internal class OpenAiChatChunk
+public class OpenAiChatChunk
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
@@ -427,7 +427,7 @@ internal class OpenAiChatChunk
     public OpenAiUsage? Usage { get; set; }
 }
 
-internal class OpenAiChoice
+public class OpenAiChoice
 {
     [JsonPropertyName("index")]
     public int Index { get; set; }
@@ -442,7 +442,7 @@ internal class OpenAiChoice
     public string? FinishReason { get; set; }
 }
 
-internal class OpenAiUsage
+public class OpenAiUsage
 {
     [JsonPropertyName("prompt_tokens")]
     public int PromptTokens { get; set; }
@@ -460,13 +460,13 @@ internal class OpenAiUsage
     public OpenAiCompletionTokensDetails? CompletionTokensDetails { get; set; }
 }
 
-internal class OpenAiPromptTokensDetails
+public class OpenAiPromptTokensDetails
 {
     [JsonPropertyName("cached_tokens")]
     public int CachedTokens { get; set; }
 }
 
-internal class OpenAiCompletionTokensDetails
+public class OpenAiCompletionTokensDetails
 {
     [JsonPropertyName("reasoning_tokens")]
     public int ReasoningTokens { get; set; }

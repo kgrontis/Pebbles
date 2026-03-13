@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Handles memory-related commands: /remember, /memory.
 /// </summary>
-internal sealed class MemoryCommands(IMemoryService? memoryService)
+public sealed class MemoryCommands(IMemoryService? memoryService)
 {
     public CommandResult HandleRemember(string[] args)
     {

@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 /// <summary>
 /// Implementation of memory management services.
 /// </summary>
-internal class MemoryService : IMemoryService
+public class MemoryService : IMemoryService
 {
     private readonly ISystemPromptService _promptService;
     private readonly IAIProvider _aiProvider;

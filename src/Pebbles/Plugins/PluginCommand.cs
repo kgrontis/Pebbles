@@ -3,7 +3,7 @@ namespace Pebbles.Plugins;
 /// <summary>
 /// Represents a command provided by a plugin.
 /// </summary>
-internal sealed class PluginCommand
+public sealed class PluginCommand
 {
     /// <summary>
     /// Command name (e.g., "/git").

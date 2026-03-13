@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace Pebbles.Models;
 
-internal enum ChatRole
+public enum ChatRole
 {
     User,
     Assistant,
@@ -10,7 +10,7 @@ internal enum ChatRole
     Tool
 }
 
-internal enum MessageStatus
+public enum MessageStatus
 {
     Pending,
     Streaming,
@@ -20,7 +20,7 @@ internal enum MessageStatus
 /// <summary>
 /// Represents a thinking block in an AI response.
 /// </summary>
-internal record ThinkingBlock
+public record ThinkingBlock
 {
     public string Content { get; init; } = string.Empty;
     public TimeSpan Duration { get; init; }
@@ -30,7 +30,7 @@ internal record ThinkingBlock
 /// <summary>
 /// Represents a single message in the chat conversation.
 /// </summary>
-internal record ChatMessage
+public record ChatMessage
 {
     public ChatRole Role { get; init; }
     public string Content { get; init; } = string.Empty;
@@ -64,7 +64,7 @@ internal record ChatMessage
 /// <summary>
 /// Represents the current chat session state.
 /// </summary>
-internal class ChatSession
+public class ChatSession
 {
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public string Model { get; set; } = "qwen3.5-plus";

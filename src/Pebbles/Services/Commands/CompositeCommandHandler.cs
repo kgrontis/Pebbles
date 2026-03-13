@@ -6,7 +6,7 @@ using Pebbles.Models;
 /// <summary>
 /// Composite command handler that aggregates all specialized command handlers.
 /// </summary>
-internal sealed class CompositeCommandHandler : ICommandHandler
+public sealed class CompositeCommandHandler : ICommandHandler
 {
     private readonly Dictionary<string, SlashCommand> _commands = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SlashCommand> _pluginCommands = new(StringComparer.OrdinalIgnoreCase);
@@ -317,11 +317,24 @@ internal sealed class CompositeCommandHandler : ICommandHandler
 
     private CommandResult HandleModel(string[] args, ChatSession session)
     {
-        var models = _options.AvailableModels;
+        var provider = _userSettingsService.Settings.Provider;
+        List<string> modelIds = [];
+
+        // Get models from user settings ModelProviders configuration
+        if (_userSettingsService.Settings.ModelProviders.TryGetValue(provider, out var providerModels))
+        {
+            modelIds = providerModels.Select(m => m.Id).ToList();
+        }
+
+        // Fallback to PebblesOptions if no configured models
+        if (modelIds.Count == 0)
+        {
+            modelIds = _options.AvailableModels.ToList();
+        }
 
         if (args.Length == 0)
         {
-            var selected = _modelPicker.PickModel(models, session.Model);
+            var selected = _modelPicker.PickModel(modelIds, session.Model);
             if (selected is not null && selected != session.Model)
             {
                 session.Model = selected;
@@ -331,7 +344,7 @@ internal sealed class CompositeCommandHandler : ICommandHandler
         }
 
         var target = args[0];
-        if (models.Contains(target))
+        if (modelIds.Contains(target))
         {
             session.Model = target;
             return CommandResult.Ok($"Switched to model: {target}");

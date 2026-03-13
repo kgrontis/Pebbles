@@ -8,7 +8,7 @@ using System.Security;
 /// <summary>
 /// Service for managing context compression and memory extraction.
 /// </summary>
-internal sealed class ContextManagementService(
+public sealed class ContextManagementService(
     ICompressionService compressionService,
     IMemoryService memoryService,
     PebblesOptions options) : IContextManagementService

@@ -4,7 +4,7 @@ namespace Pebbles.Services;
 /// Manages system prompts for the AI assistant.
 /// Supports loading from files, environment variable overrides, and user memory.
 /// </summary>
-internal class SystemPromptService : ISystemPromptService
+public class SystemPromptService : ISystemPromptService
 {
     private const string DefaultPromptDir = ".pebbles/agent";
     private const string DefaultUserMemoryPath = ".pebbles/user_memory.md";

@@ -8,7 +8,7 @@ using System.Security;
 /// <summary>
 /// Handles session-related commands: /save, /load, /sessions, /delete.
 /// </summary>
-internal sealed class SessionCommands(ISessionStore sessionStore)
+public sealed class SessionCommands(ISessionStore sessionStore)
 {
     public async Task<CommandResult> HandleSave(ChatSession session)
     {

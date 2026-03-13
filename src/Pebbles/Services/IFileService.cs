@@ -3,7 +3,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Manages file operations for including files in AI context.
 /// </summary>
-internal interface IFileService
+public interface IFileService
 {
     /// <summary>
     /// Parses @file syntax from input and returns resolved file references.
@@ -51,7 +51,7 @@ internal interface IFileService
 /// <summary>
 /// Represents a file or folder item for autocomplete.
 /// </summary>
-internal record FileItem
+public record FileItem
 {
     /// <summary>
     /// Item name (filename or folder name).
@@ -82,7 +82,7 @@ internal record FileItem
 /// <summary>
 /// Result of parsing file references from input.
 /// </summary>
-internal record ParsedInput
+public record ParsedInput
 {
     /// <summary>
     /// Original user input.
@@ -108,7 +108,7 @@ internal record ParsedInput
 /// <summary>
 /// A file reference parsed from @file syntax.
 /// </summary>
-internal record FileReference
+public record FileReference
 {
     /// <summary>
     /// Original reference string (e.g., "@Program.cs").
@@ -134,7 +134,7 @@ internal record FileReference
 /// <summary>
 /// Type of file content.
 /// </summary>
-internal enum FileContentType
+public enum FileContentType
 {
     /// <summary>
     /// Text content (code, markup, etc.).
@@ -155,7 +155,7 @@ internal enum FileContentType
 /// <summary>
 /// Content of a loaded file.
 /// </summary>
-internal record FileContent
+public record FileContent
 {
     /// <summary>
     /// File path.

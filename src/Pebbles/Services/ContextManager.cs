@@ -3,7 +3,7 @@ namespace Pebbles.Services;
 /// <summary>
 /// Manages project context and guidelines for the AI.
 /// </summary>
-internal class ContextManager
+public class ContextManager
 {
     private readonly string _globalContextPath;
     private readonly string _projectContextPath;

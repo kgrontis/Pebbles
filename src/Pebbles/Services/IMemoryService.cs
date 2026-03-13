@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Provides memory management services for persisting user preferences.
 /// </summary>
-internal interface IMemoryService
+public interface IMemoryService
 {
     /// <summary>
     /// Gets the current user memories.

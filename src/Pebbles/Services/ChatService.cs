@@ -8,7 +8,7 @@ using Spectre.Console;
 /// <summary>
 /// Main chat application service - orchestrates the conversation loop.
 /// </summary>
-internal sealed class ChatService(
+public sealed class ChatService(
     IAIProvider aiProvider,
     ICommandHandler commandHandler,
     IChatRenderer renderer,

@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Discovers and loads tool plugins from global and project directories.
 /// </summary>
-internal sealed class ToolPluginLoader : IToolPluginLoader
+public sealed class ToolPluginLoader : IToolPluginLoader
 {
     private readonly RoslynPluginService _roslynService;
     private readonly string _globalPluginsPath;
@@ -79,7 +79,7 @@ internal sealed class ToolPluginLoader : IToolPluginLoader
 /// <summary>
 /// Adapter that wraps a tool plugin to implement ITool.
 /// </summary>
-internal sealed class ToolPluginAdapter(LoadedToolPlugin plugin) : ITool
+public sealed class ToolPluginAdapter(LoadedToolPlugin plugin) : ITool
 {
     public string Name => plugin.Instance?.Name ?? plugin.Name;
 

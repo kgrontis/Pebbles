@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 /// <summary>
 /// Provides context compaction services for managing conversation history.
 /// </summary>
-internal interface ICompressionService
+public interface ICompressionService
 {
     /// <summary>
     /// Determines whether compaction should be triggered based on current token usage.

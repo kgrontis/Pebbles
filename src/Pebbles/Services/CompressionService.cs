@@ -9,7 +9,7 @@ using Pebbles.Models;
 /// <summary>
 /// Implementation of context compaction services.
 /// </summary>
-internal class CompressionService : ICompressionService
+public class CompressionService : ICompressionService
 {
     private readonly IAIProvider _aiProvider;
     private readonly ISystemPromptService _promptService;

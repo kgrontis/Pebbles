@@ -1,11 +1,12 @@
 namespace Pebbles.Services;
 
+using Pebbles.Configuration;
 using Spectre.Console;
 
 /// <summary>
 /// Handles interactive provider setup on first run.
 /// </summary>
-internal interface IProviderSetupService
+public interface IProviderSetupService
 {
     /// <summary>
     /// Runs the provider setup flow if needed.
@@ -22,7 +23,7 @@ internal interface IProviderSetupService
 /// <summary>
 /// Handles interactive provider setup on first run.
 /// </summary>
-internal sealed class ProviderSetupService(IUserSettingsService userSettingsService) : IProviderSetupService
+public sealed class ProviderSetupService(IUserSettingsService userSettingsService) : IProviderSetupService
 {
     private static readonly (string Name, string DisplayName, string EnvVar)[] Providers =
     [
@@ -99,15 +100,15 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
             AnsiConsole.MarkupLine($"[dim]Enter your API key for {DisplayName}:[/]");
             AnsiConsole.WriteLine();
 
-            var apiKey = PromptForApiKey();
+            var enteredKey = PromptForApiKey();
 
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(enteredKey))
             {
                 AnsiConsole.MarkupLine("[yellow]No API key provided. You can set it later using the /provider command.[/]");
             }
             else
             {
-                await userSettingsService.SetApiKey(Name, apiKey).ConfigureAwait(false);
+                await userSettingsService.SetApiKey(Name, enteredKey).ConfigureAwait(false);
                 AnsiConsole.MarkupLine("[green]✓ API key saved.[/]");
             }
 
@@ -115,10 +116,55 @@ internal sealed class ProviderSetupService(IUserSettingsService userSettingsServ
             await userSettingsService.SetProviderAsync(Name).ConfigureAwait(false);
         }
 
+        // Initialize model providers configuration
+        await InitializeModelProvidersAsync(Name).ConfigureAwait(false);
+
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[green]✓ Setup complete![/]");
         AnsiConsole.MarkupLine("[dim]You can change providers anytime with the /provider command.[/]");
         AnsiConsole.WriteLine();
+    }
+
+    private async Task InitializeModelProvidersAsync(string providerName)
+    {
+        // For Alibaba Cloud (Qwen OAuth equivalent), initialize with hard-coded models
+        if (providerName.Equals("alibabacloud", StringComparison.OrdinalIgnoreCase))
+        {
+            var models = AlibabaCloudModels.Models;
+
+            // Initialize model providers if not already set
+            if (!userSettingsService.Settings.ModelProviders.ContainsKey("alibabacloud"))
+            {
+                userSettingsService.Settings.ModelProviders["alibabacloud"] = models;
+
+                // Set default model to first available
+                if (models.Count > 0)
+                {
+                    userSettingsService.Settings.DefaultModel = models[0].Id;
+                    AnsiConsole.MarkupLine($"[green]✓ Default model set to: {models[0].Name}[/]");
+                }
+
+                await userSettingsService.SaveAsync().ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            // For other providers (OpenAI, Anthropic), user must configure models manually
+            // Set a sensible default based on provider
+            var defaultModel = providerName switch
+            {
+                "openai" => "gpt-4o",
+                "anthropic" => "claude-3-5-sonnet-20241022",
+                _ => null
+            };
+
+            if (!string.IsNullOrEmpty(defaultModel))
+            {
+                userSettingsService.Settings.DefaultModel = defaultModel;
+                await userSettingsService.SaveAsync().ConfigureAwait(false);
+                AnsiConsole.MarkupLine($"[dim]Default model: {defaultModel} (configure more in user_settings.json)[/]");
+            }
+        }
     }
 
     private static string PromptForApiKey()

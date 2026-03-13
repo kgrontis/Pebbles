@@ -7,7 +7,7 @@ using System.Security;
 /// <summary>
 /// Discovers and loads C# plugins from global and project directories.
 /// </summary>
-internal sealed class PluginLoader : IPluginLoader
+public sealed class PluginLoader : IPluginLoader
 {
     private readonly RoslynPluginService _roslynService;
     private readonly string _globalPluginsPath;

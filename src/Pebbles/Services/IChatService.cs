@@ -5,7 +5,7 @@ using Pebbles.Models;
 /// <summary>
 /// Main chat loop orchestration.
 /// </summary>
-internal interface IChatService
+public interface IChatService
 {
     /// <summary>
     /// Runs the chat application until exit.

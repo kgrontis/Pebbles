@@ -5,7 +5,7 @@ namespace Pebbles.Configuration;
 /// <summary>
 /// Validator for PebblesOptions configuration.
 /// </summary>
-internal sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
+public sealed class PebblesOptionsValidator : IValidateOptions<PebblesOptions>
 {
     private static readonly HashSet<string> ValidProviders = new(StringComparer.OrdinalIgnoreCase)
     {

@@ -3,7 +3,7 @@ namespace Pebbles.Models;
 /// <summary>
 /// User settings stored persistently across sessions.
 /// </summary>
-internal sealed class UserSettings
+public sealed class UserSettings
 {
     /// <summary>
     /// The selected AI provider (alibabacloud, openai, anthropic).
@@ -24,4 +24,11 @@ internal sealed class UserSettings
     /// API keys for each provider (key = provider name, value = API key).
     /// </summary>
     public Dictionary<string, string> ApiKeys { get; set; } = new();
+
+    /// <summary>
+    /// Model providers configuration (matches qwen-code's modelProviders).
+    /// Key is provider name (e.g., "openai", "anthropic", "alibabacloud").
+    /// Value is list of model configurations for that provider.
+    /// </summary>
+    public Dictionary<string, List<ModelProviderConfig>> ModelProviders { get; set; } = new();
 }
