@@ -20,22 +20,11 @@ public sealed class ChatService(
     ISessionStore sessionStore,
     PebblesOptions options) : IChatService
 {
-    public async Task RunAsync()
+    public async Task RunAsync(SessionResumeOptions? resumeOptions = null)
     {
-        // Try to load last active session
-        var lastSessionId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
-        ChatSession? session = null;
+        resumeOptions ??= new SessionResumeOptions();
 
-        if (!string.IsNullOrEmpty(lastSessionId))
-        {
-            session = await sessionStore.LoadSessionAsync(lastSessionId).ConfigureAwait(false);
-            if (session is not null)
-            {
-                AnsiConsole.MarkupLine($"[dim]Loaded previous session: {lastSessionId}[/]");
-            }
-        }
-
-        session ??= ChatSession.Create(options.DefaultModel);
+        var session = await ResolveSessionAsync(resumeOptions).ConfigureAwait(false);
         renderer.RenderWelcome(session);
 
         while (true)
@@ -51,6 +40,98 @@ public sealed class ChatService(
                 HandleGeneralException(ex, session);
             }
         }
+    }
+
+    private async Task<ChatSession> ResolveSessionAsync(SessionResumeOptions resumeOptions)
+    {
+        // If a specific session ID was provided, try to load it
+        if (!string.IsNullOrEmpty(resumeOptions.SessionId))
+        {
+            var session = await sessionStore.LoadSessionAsync(resumeOptions.SessionId).ConfigureAwait(false);
+            if (session is not null)
+            {
+                AnsiConsole.MarkupLine($"[dim]Loaded session: {resumeOptions.SessionId}[/]");
+                return session;
+            }
+
+            AnsiConsole.MarkupLine($"[yellow]Session '{resumeOptions.SessionId}' not found. Starting new session.[/]");
+            return ChatSession.Create(options.DefaultModel);
+        }
+
+        // Handle different resume modes
+        return resumeOptions.Mode switch
+        {
+            SessionResumeMode.New => ChatSession.Create(options.DefaultModel),
+            SessionResumeMode.Continue => await LoadLastSessionOrCreateAsync().ConfigureAwait(false),
+            SessionResumeMode.Select => await SelectSessionOrCreateAsync().ConfigureAwait(false),
+            _ => await LoadLastSessionOrCreateAsync().ConfigureAwait(false)
+        };
+    }
+
+    private async Task<ChatSession> LoadLastSessionOrCreateAsync()
+    {
+        var lastSessionId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
+
+        if (!string.IsNullOrEmpty(lastSessionId))
+        {
+            var session = await sessionStore.LoadSessionAsync(lastSessionId).ConfigureAwait(false);
+            if (session is not null)
+            {
+                AnsiConsole.MarkupLine($"[dim]Continuing session: {lastSessionId}[/]");
+                return session;
+            }
+        }
+
+        return ChatSession.Create(options.DefaultModel);
+    }
+
+    private async Task<ChatSession> SelectSessionOrCreateAsync()
+    {
+        var sessionIds = await sessionStore.ListSessionIdsAsync().ConfigureAwait(false);
+        var sessionList = sessionIds.ToList();
+
+        if (sessionList.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No saved sessions found. Starting new session.[/]");
+            return ChatSession.Create(options.DefaultModel);
+        }
+
+        // Build selection items
+        var lastActiveId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
+        var choices = new List<(string Display, string? Id)>();
+
+        foreach (var id in sessionList)
+        {
+            var marker = id == lastActiveId ? " [green]●[/]" : "";
+            choices.Add(($"[dim]{id}[/]{marker}", id));
+        }
+
+        // Add option to start new session
+        choices.Add(("[yellow]+ New session[/]", null));
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]Select a session to resume:[/]")
+                .PageSize(10)
+                .UseConverter(c => c)
+                .AddChoices(choices.Select(c => c.Display)));
+
+        // Find the ID for the selected display string
+        var selectedChoice = choices.FirstOrDefault(c => c.Display == selected);
+
+        if (selectedChoice.Id is null)
+        {
+            return ChatSession.Create(options.DefaultModel);
+        }
+
+        var session = await sessionStore.LoadSessionAsync(selectedChoice.Id).ConfigureAwait(false);
+        if (session is not null)
+        {
+            AnsiConsole.MarkupLine($"[dim]Loaded session: {selectedChoice.Id}[/]");
+            return session;
+        }
+
+        return ChatSession.Create(options.DefaultModel);
     }
 
     private async Task ProcessUserInputAsync(ChatSession session)

@@ -10,5 +10,6 @@ public interface IChatService
     /// <summary>
     /// Runs the chat application until exit.
     /// </summary>
-    Task RunAsync();
+    /// <param name="resumeOptions">Options for session resumption.</param>
+    Task RunAsync(SessionResumeOptions? resumeOptions = null);
 }

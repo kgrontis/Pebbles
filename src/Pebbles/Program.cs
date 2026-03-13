@@ -2,12 +2,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pebbles.Configuration;
+using Pebbles.Models;
 using Pebbles.Services;
 using Spectre.Console;
 using System.Text;
 
 // Set console encoding to UTF-8 for Unicode symbol support
 Console.OutputEncoding = Encoding.UTF8;
+
+// Parse CLI arguments
+var resumeOptions = ParseArguments(args);
 
 // Ensure global agent directory exists with default prompts
 AgentInitializer.EnsureInitialized();
@@ -52,7 +56,7 @@ using var serviceProvider = services.BuildServiceProvider();
 var chatService = serviceProvider.GetRequiredService<IChatService>();
 try
 {
-    await chatService.RunAsync().ConfigureAwait(false);
+    await chatService.RunAsync(resumeOptions).ConfigureAwait(false);
 }
 catch (HttpRequestException ex)
 {
@@ -88,4 +92,67 @@ catch (TimeoutException ex)
     AnsiConsole.MarkupLine($"[red]Timeout: {ex.Message}[/]");
     AnsiConsole.MarkupLine("[dim]The request took too long. Please try again.[/]");
     Environment.Exit(1);
+}
+
+static SessionResumeOptions ParseArguments(string[] args)
+{
+    var options = new SessionResumeOptions();
+
+    for (var i = 0; i < args.Length; i++)
+    {
+        switch (args[i])
+        {
+            case "-c":
+            case "--continue":
+                options = options with { Mode = SessionResumeMode.Continue };
+                break;
+
+            case "-r":
+            case "--resume":
+                options = options with { Mode = SessionResumeMode.Select };
+                break;
+
+            case "-n":
+            case "--new":
+                options = options with { Mode = SessionResumeMode.New };
+                break;
+
+            case "-s":
+            case "--session":
+                if (i + 1 < args.Length)
+                {
+                    options = options with { Mode = SessionResumeMode.Default, SessionId = args[++i] };
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[red]Error: --session requires a session ID[/]");
+                    Environment.Exit(1);
+                }
+                break;
+
+            case "-h":
+            case "--help":
+                ShowHelp();
+                Environment.Exit(0);
+                break;
+        }
+    }
+
+    return options;
+}
+
+static void ShowHelp()
+{
+    AnsiConsole.MarkupLine("");
+    AnsiConsole.MarkupLine("[bold]Pebbles[/] - AI Coding Assistant");
+    AnsiConsole.MarkupLine("");
+    AnsiConsole.MarkupLine("[bold]Usage:[/] pebbles [options]");
+    AnsiConsole.MarkupLine("");
+    AnsiConsole.MarkupLine("[bold]Options:[/]");
+    AnsiConsole.MarkupLine("  [dim]-c, --continue[/]    Continue the last active session");
+    AnsiConsole.MarkupLine("  [dim]-r, --resume[/]      Select a session to resume from a list");
+    AnsiConsole.MarkupLine("  [dim]-n, --new[/]         Start a new session (ignore saved sessions)");
+    AnsiConsole.MarkupLine("  [dim]-s, --session <id>[/] Load a specific session by ID");
+    AnsiConsole.MarkupLine("  [dim]-h, --help[/]        Show this help message");
+    AnsiConsole.MarkupLine("");
 }
