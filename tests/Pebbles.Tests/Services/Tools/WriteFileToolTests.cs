@@ -119,7 +119,17 @@ public class WriteFileToolTests : IDisposable
     {
         // Arrange - use a unique file name to avoid conflicts with parallel tests
         var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
-        await File.WriteAllTextAsync(testFile, "Original content");
+
+        // Write and close the file explicitly to release the handle
+        await using (var fs = File.Create(testFile))
+        await using (var writer = new StreamWriter(fs))
+        {
+            await writer.WriteAsync("Original content");
+        }
+
+        // Small delay to ensure file handle is fully released on Windows CI
+        await Task.Delay(50);
+
         var args = new { path = testFile, content = "New content", createBackup = true };
         var arguments = JsonSerializer.Serialize(args);
 
@@ -146,7 +156,17 @@ public class WriteFileToolTests : IDisposable
     {
         // Arrange - use a unique file name to avoid conflicts with parallel tests
         var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
-        await File.WriteAllTextAsync(testFile, "Original content");
+
+        // Write and close the file explicitly to release the handle
+        await using (var fs = File.Create(testFile))
+        await using (var writer = new StreamWriter(fs))
+        {
+            await writer.WriteAsync("Original content");
+        }
+
+        // Small delay to ensure file handle is fully released on Windows CI
+        await Task.Delay(50);
+
         var args = new { path = testFile, content = "New content", createBackup = false };
         var arguments = JsonSerializer.Serialize(args);
 
