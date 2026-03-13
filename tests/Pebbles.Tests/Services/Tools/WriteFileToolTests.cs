@@ -4,6 +4,7 @@ using Pebbles.Services.Tools;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
+[Collection("WriteFileToolTests")]
 public class WriteFileToolTests : IDisposable
 {
     private bool isDisposed;
@@ -128,7 +129,8 @@ public class WriteFileToolTests : IDisposable
         }
 
         // Small delay to ensure file handle is fully released on Windows CI
-        await Task.Delay(50);
+        // Windows Defender may scan newly created files
+        await Task.Delay(200);
 
         var args = new { path = testFile, content = "New content", createBackup = true };
         var arguments = JsonSerializer.Serialize(args);
@@ -165,7 +167,8 @@ public class WriteFileToolTests : IDisposable
         }
 
         // Small delay to ensure file handle is fully released on Windows CI
-        await Task.Delay(50);
+        // Windows Defender may scan newly created files
+        await Task.Delay(200);
 
         var args = new { path = testFile, content = "New content", createBackup = false };
         var arguments = JsonSerializer.Serialize(args);
@@ -278,3 +281,10 @@ public class WriteFileToolTests : IDisposable
         GC.SuppressFinalize(this);
     }
 }
+
+/// <summary>
+/// Collection definition to prevent parallel execution of WriteFileToolTests.
+/// This helps avoid file locking issues on Windows CI.
+/// </summary>
+[CollectionDefinition("WriteFileToolTests", DisableParallelization = true)]
+public class WriteFileToolTestCollection { }
