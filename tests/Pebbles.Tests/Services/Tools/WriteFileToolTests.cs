@@ -117,9 +117,8 @@ public class WriteFileToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_WithExistingFile_CreatesBackup()
     {
-        // Arrange - use a file in _testDirectory which is within the user profile (allowed path)
-        // The tool validates paths are within working directory or user profile
-        var testFile = Path.Combine(_testDirectory, "existing.txt");
+        // Arrange - use a unique file name to avoid conflicts with parallel tests
+        var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
         await File.WriteAllTextAsync(testFile, "Original content");
         var args = new { path = testFile, content = "New content", createBackup = true };
         var arguments = JsonSerializer.Serialize(args);
@@ -145,8 +144,8 @@ public class WriteFileToolTests : IDisposable
     [Fact]
     public async Task ExecuteAsync_WithCreateBackupFalse_DoesNotCreateBackup()
     {
-        // Arrange
-        var testFile = Path.Combine(_testDirectory, "existing.txt");
+        // Arrange - use a unique file name to avoid conflicts with parallel tests
+        var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
         await File.WriteAllTextAsync(testFile, "Original content");
         var args = new { path = testFile, content = "New content", createBackup = false };
         var arguments = JsonSerializer.Serialize(args);
