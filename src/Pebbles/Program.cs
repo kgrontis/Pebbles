@@ -146,7 +146,7 @@ static void ShowHelp()
     AnsiConsole.MarkupLine("");
     AnsiConsole.MarkupLine("[bold]Pebbles[/] - AI Coding Assistant");
     AnsiConsole.MarkupLine("");
-    AnsiConsole.MarkupLine("[bold]Usage:[/] pebbles [options]");
+    AnsiConsole.MarkupLine("[bold]Usage:[/] pebbles [[options]]");
     AnsiConsole.MarkupLine("");
     AnsiConsole.MarkupLine("[bold]Options:[/]");
     AnsiConsole.MarkupLine("  [dim]-c, --continue[/]    Continue the last active session");

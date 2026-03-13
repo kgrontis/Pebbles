@@ -87,10 +87,10 @@ public sealed class ChatService(
 
     private async Task<ChatSession> SelectSessionOrCreateAsync()
     {
-        var sessionIds = await sessionStore.ListSessionIdsAsync().ConfigureAwait(false);
-        var sessionList = sessionIds.ToList();
+        var summaries = await sessionStore.ListSessionSummariesAsync().ConfigureAwait(false);
+        var summaryList = summaries.ToList();
 
-        if (sessionList.Count == 0)
+        if (summaryList.Count == 0)
         {
             AnsiConsole.MarkupLine("[dim]No saved sessions found. Starting new session.[/]");
             return ChatSession.Create(options.DefaultModel);
@@ -100,10 +100,13 @@ public sealed class ChatService(
         var lastActiveId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
         var choices = new List<(string Display, string? Id)>();
 
-        foreach (var id in sessionList)
+        foreach (var summary in summaryList)
         {
-            var marker = id == lastActiveId ? " [green]●[/]" : "";
-            choices.Add(($"[dim]{id}[/]{marker}", id));
+            var marker = summary.Id == lastActiveId ? " [green]●[/]" : "";
+            var preview = string.IsNullOrEmpty(summary.LastMessagePreview)
+                ? "[dim grey](empty)[/]"
+                : Markup.Escape(summary.LastMessagePreview);
+            choices.Add(($"[dim]{summary.Id}[/] [dim grey]{preview}[/]{marker}", summary.Id));
         }
 
         // Add option to start new session

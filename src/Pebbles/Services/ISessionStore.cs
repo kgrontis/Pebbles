@@ -11,32 +11,37 @@ public interface ISessionStore
     /// Saves a session to persistent storage.
     /// </summary>
     Task SaveSessionAsync(ChatSession session);
-    
+
     /// <summary>
     /// Loads a session by ID.
     /// </summary>
     Task<ChatSession?> LoadSessionAsync(string sessionId);
-    
+
     /// <summary>
     /// Lists all session IDs.
     /// </summary>
     Task<IEnumerable<string>> ListSessionIdsAsync();
-    
+
+    /// <summary>
+    /// Lists all sessions with summary information.
+    /// </summary>
+    Task<IEnumerable<SessionSummary>> ListSessionSummariesAsync();
+
     /// <summary>
     /// Deletes a session.
     /// </summary>
     Task DeleteSessionAsync(string sessionId);
-    
+
     /// <summary>
     /// Creates a new session.
     /// </summary>
     Task<ChatSession> CreateNewSessionAsync(string model);
-    
+
     /// <summary>
     /// Gets the last active session ID.
     /// </summary>
     Task<string?> GetLastActiveSessionIdAsync();
-    
+
     /// <summary>
     /// Sets the last active session ID.
     /// </summary>

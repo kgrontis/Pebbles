@@ -17,12 +17,12 @@ public sealed class SessionStore : ISessionStore
         var pebblesDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".pebbles");
-        
+
         _sessionsDirectory = Path.Combine(pebblesDir, "sessions");
         _lastActiveFile = Path.Combine(pebblesDir, "last_session.txt");
-        
+
         Directory.CreateDirectory(_sessionsDirectory);
-        
+
         _jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -42,7 +42,7 @@ public sealed class SessionStore : ISessionStore
         var filePath = GetSessionFilePath(sessionId);
         if (!File.Exists(filePath))
             return null;
-        
+
         var json = await File.ReadAllTextAsync(filePath).ConfigureAwait(false);
         return JsonSerializer.Deserialize<ChatSession>(json, _jsonOptions);
     }
@@ -51,17 +51,51 @@ public sealed class SessionStore : ISessionStore
     {
         var files = Directory.GetFiles(_sessionsDirectory, "*.json");
         var sessions = new List<(string Id, DateTime LastModified)>();
-        
+
         foreach (var file in files)
         {
             var info = new FileInfo(file);
             var id = Path.GetFileNameWithoutExtension(info.Name);
             sessions.Add((id, info.LastWriteTimeUtc));
         }
-        
+
         return sessions
             .OrderByDescending(s => s.LastModified)
             .Select(s => s.Id);
+    }
+
+    public async Task<IEnumerable<SessionSummary>> ListSessionSummariesAsync()
+    {
+        var files = Directory.GetFiles(_sessionsDirectory, "*.json");
+        var summaries = new List<SessionSummary>();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(file).ConfigureAwait(false);
+                var session = JsonSerializer.Deserialize<ChatSession>(json, _jsonOptions);
+
+                if (session is not null)
+                {
+                    var info = new FileInfo(file);
+                    summaries.Add(new SessionSummary
+                    {
+                        Id = session.Id,
+                        LastMessagePreview = session.GetLastUserMessagePreview(),
+                        MessageCount = session.Messages.Count,
+                        LastModified = info.LastWriteTimeUtc
+                    });
+                }
+            }
+            catch (JsonException)
+            {
+                // Skip corrupted session files
+            }
+        }
+
+        return summaries
+            .OrderByDescending(s => s.LastModified);
     }
 
     public async Task DeleteSessionAsync(string sessionId)
@@ -83,7 +117,7 @@ public sealed class SessionStore : ISessionStore
     {
         if (!File.Exists(_lastActiveFile))
             return null;
-        
+
         return await File.ReadAllTextAsync(_lastActiveFile).ConfigureAwait(false);
     }
 

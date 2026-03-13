@@ -91,7 +91,34 @@ public class ChatSession
         (TotalInputTokens * 0.003 + TotalOutputTokens * 0.015) / 1000.0;
 
     /// <summary>
+    /// Gets a preview of the last user message, truncated if necessary.
+    /// </summary>
+    public string GetLastUserMessagePreview(int maxLength = 50)
+    {
+        var lastUserMessage = Messages.LastOrDefault(m => m.Role == ChatRole.User);
+        if (lastUserMessage is null)
+            return string.Empty;
+
+        var content = lastUserMessage.Content.ReplaceLineEndings(" ").Trim();
+        if (content.Length <= maxLength)
+            return content;
+
+        return $"{content[..maxLength]}...";
+    }
+
+    /// <summary>
     /// Creates a new session with the specified model.
     /// </summary>
     public static ChatSession Create(string model) => new() { Model = model };
+}
+
+/// <summary>
+/// Summary information for a session, used for listing.
+/// </summary>
+public class SessionSummary
+{
+    public string Id { get; init; } = string.Empty;
+    public string LastMessagePreview { get; init; } = string.Empty;
+    public int MessageCount { get; init; }
+    public DateTime LastModified { get; init; }
 }

@@ -16,10 +16,10 @@ public sealed class SessionCommands(ISessionStore sessionStore)
         {
             await sessionStore.SaveSessionAsync(session).ConfigureAwait(false);
             await sessionStore.SetLastActiveSessionIdAsync(session.Id).ConfigureAwait(false);
-            
+
             return CommandResult.OkWithMarkup($$"""
                 [bold green]✓[/] Session saved
-                
+
                   ID: [dim]{{session.Id}}[/]
                   Messages: [dim]{{session.Messages.Count}}[/]
                   Model: [dim]{{session.Model}}[/]
@@ -36,12 +36,12 @@ public sealed class SessionCommands(ISessionStore sessionStore)
         try
         {
             var loadedSession = await sessionStore.LoadSessionAsync(sessionId).ConfigureAwait(false);
-            
+
             if (loadedSession is null)
             {
                 return CommandResult.Fail($"Session '{sessionId}' not found");
             }
-            
+
             // Copy messages from loaded session to current
             currentSession.Messages.Clear();
             foreach (var msg in loadedSession.Messages)
@@ -51,12 +51,12 @@ public sealed class SessionCommands(ISessionStore sessionStore)
             currentSession.Model = loadedSession.Model;
             currentSession.TotalInputTokens = loadedSession.TotalInputTokens;
             currentSession.TotalOutputTokens = loadedSession.TotalOutputTokens;
-            
+
             await sessionStore.SetLastActiveSessionIdAsync(sessionId).ConfigureAwait(false);
-            
+
             return CommandResult.OkWithMarkup($$"""
                 [bold green]✓[/] Session loaded
-                
+
                   ID: [dim]{{sessionId}}[/]
                   Messages: [dim]{{currentSession.Messages.Count}}[/]
                   Model: [dim]{{currentSession.Model}}[/]
@@ -72,34 +72,39 @@ public sealed class SessionCommands(ISessionStore sessionStore)
     {
         try
         {
-            var sessionIds = await sessionStore.ListSessionIdsAsync().ConfigureAwait(false);
+            var summaries = await sessionStore.ListSessionSummariesAsync().ConfigureAwait(false);
+            var summaryList = summaries.ToList();
             var lastActive = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
-            
-            if (!sessionIds.Any())
+
+            if (summaryList.Count == 0)
             {
                 return CommandResult.OkWithMarkup("""
                     [dim]No saved sessions yet.[/]
-                    
+
                     Use [bold]/save[/] to save the current session.
                     """);
             }
-            
+
             var lines = new List<string>
             {
                 "",
                 "[bold]Saved Sessions[/]",
                 ""
             };
-            
-            foreach (var id in sessionIds)
+
+            foreach (var summary in summaryList)
             {
-                var marker = id == lastActive ? "[green]●[/]" : " ";
-                lines.Add($"  {marker} [dim]{id}[/]");
+                var marker = summary.Id == lastActive ? "[green]●[/]" : " ";
+                var preview = string.IsNullOrEmpty(summary.LastMessagePreview)
+                    ? "[dim grey](empty)[/]"
+                    : Markup.Escape(summary.LastMessagePreview);
+
+                lines.Add($"  {marker} [dim]{summary.Id}[/] [dim grey]{preview}[/]");
             }
-            
+
             lines.Add("");
             lines.Add("[dim]Use /load <id> to load a session, /delete <id> to remove.[/]");
-            
+
             return CommandResult.OkWithMarkup(string.Join("\n", lines));
         }
         catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is NotSupportedException || ex is SecurityException)
@@ -117,12 +122,12 @@ public sealed class SessionCommands(ISessionStore sessionStore)
             {
                 return CommandResult.Fail($"Session '{sessionId}' not found");
             }
-            
+
             await sessionStore.DeleteSessionAsync(sessionId).ConfigureAwait(false);
-            
+
             return CommandResult.OkWithMarkup($$"""
                 [bold green]✓[/] Session deleted
-                
+
                   ID: [dim]{{sessionId}}[/]
                   Messages: [dim]{{session.Messages.Count}}[/]
                 """);

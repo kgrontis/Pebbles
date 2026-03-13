@@ -247,6 +247,39 @@ internal sealed class TestableSessionStore : ISessionStore
         return Task.FromResult(sessions);
     }
 
+    public async Task<IEnumerable<SessionSummary>> ListSessionSummariesAsync()
+    {
+        var files = Directory.GetFiles(_sessionsDirectory, "*.json");
+        var summaries = new List<SessionSummary>();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(file);
+                var session = System.Text.Json.JsonSerializer.Deserialize<ChatSession>(json, _jsonOptions);
+
+                if (session is not null)
+                {
+                    var info = new FileInfo(file);
+                    summaries.Add(new SessionSummary
+                    {
+                        Id = session.Id,
+                        LastMessagePreview = session.GetLastUserMessagePreview(),
+                        MessageCount = session.Messages.Count,
+                        LastModified = info.LastWriteTimeUtc
+                    });
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Skip corrupted session files
+            }
+        }
+
+        return summaries.OrderByDescending(s => s.LastModified);
+    }
+
     public Task DeleteSessionAsync(string sessionId)
     {
         var filePath = GetSessionFilePath(sessionId);
