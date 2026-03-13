@@ -4,6 +4,7 @@ using Pebbles.Configuration;
 using Pebbles.Models;
 using Pebbles.UI;
 using Spectre.Console;
+using System;
 
 /// <summary>
 /// Main chat application service - orchestrates the conversation loop.
@@ -24,7 +25,7 @@ public sealed class ChatService(
         // Try to load last active session
         var lastSessionId = await sessionStore.GetLastActiveSessionIdAsync().ConfigureAwait(false);
         ChatSession? session = null;
-        
+
         if (!string.IsNullOrEmpty(lastSessionId))
         {
             session = await sessionStore.LoadSessionAsync(lastSessionId).ConfigureAwait(false);
@@ -33,67 +34,107 @@ public sealed class ChatService(
                 AnsiConsole.MarkupLine($"[dim]Loaded previous session: {lastSessionId}[/]");
             }
         }
-        
+
         session ??= ChatSession.Create(options.DefaultModel);
         renderer.RenderWelcome(session);
 
         while (true)
         {
-            var input = inputHandler.ReadInput(session);
-
-            if (input is null)
-                break;
-
-            input = input.Trim();
-            if (string.IsNullOrWhiteSpace(input))
-                continue;
-
-            if (commandHandler.IsCommand(input))
+            try
             {
-                var result = await commandHandler.ExecuteAsync(input, session).ConfigureAwait(false);
-                renderer.RenderCommandResult(result, session);
-
-                if (result.ShouldExit)
-                    break;
-
-                continue;
+                await ProcessUserInputAsync(session).ConfigureAwait(false);
             }
-
-            var parsed = fileService.ParseFileReferences(input);
-            if (parsed.HasFiles)
+#pragma warning disable CA1031 // General exception handler is intentional to prevent app crashes
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
-                await LoadFilesAsync(parsed).ConfigureAwait(false);
-                input = parsed.CleanInput;
+                HandleGeneralException(ex, session);
             }
-
-            var inputTokens = EstimateTokens(input);
-            var userMsg = ChatMessage.User(parsed.Original, inputTokens);
-            session.Messages.Add(userMsg);
-
-            aiProvider.AddToHistory(userMsg);
-            renderer.RenderUserMessage(parsed.Original);
-
-            var assistantMsg = await toolExecutionService.ExecuteToolLoopAsync(input).ConfigureAwait(false);
-
-            session.Messages.Add(assistantMsg);
-            aiProvider.AddToHistory(assistantMsg);
-
-            renderer.RenderAssistantMessage(assistantMsg.Content, assistantMsg.Thinking);
-
-            session.TotalInputTokens += inputTokens;
-            session.TotalOutputTokens += assistantMsg.TokenCount;
-            renderer.RenderTokenInfo(inputTokens, assistantMsg.TokenCount, session);
-
-            await contextManagementService.CheckAutoCompressionAsync(session).ConfigureAwait(false);
-            await contextManagementService.CheckMemoryExtractionAsync(session).ConfigureAwait(false);
-            
-            // Auto-save session after each message
-            await sessionStore.SaveSessionAsync(session).ConfigureAwait(false);
         }
-        
-        // Final save on exit
+    }
+
+    private async Task ProcessUserInputAsync(ChatSession session)
+    {
+        var input = inputHandler.ReadInput(session);
+
+        if (input is null)
+            return;
+
+        input = input.Trim();
+        if (string.IsNullOrWhiteSpace(input))
+            return;
+
+        if (commandHandler.IsCommand(input))
+        {
+            var result = await commandHandler.ExecuteAsync(input, session).ConfigureAwait(false);
+            renderer.RenderCommandResult(result, session);
+
+            if (result.ShouldExit)
+                Environment.Exit(0);
+
+            return;
+        }
+
+        var parsed = fileService.ParseFileReferences(input);
+        if (parsed.HasFiles)
+        {
+            await LoadFilesAsync(parsed).ConfigureAwait(false);
+            input = parsed.CleanInput;
+        }
+
+        var inputTokens = EstimateTokens(input);
+        var userMsg = ChatMessage.User(parsed.Original, inputTokens);
+        session.Messages.Add(userMsg);
+
+        aiProvider.AddToHistory(userMsg);
+        renderer.RenderUserMessage(parsed.Original);
+
+        var assistantMsg = await toolExecutionService.ExecuteToolLoopAsync(input).ConfigureAwait(false);
+
+        session.Messages.Add(assistantMsg);
+        aiProvider.AddToHistory(assistantMsg);
+
+        renderer.RenderAssistantMessage(assistantMsg.Content, assistantMsg.Thinking);
+
+        session.TotalInputTokens += inputTokens;
+        session.TotalOutputTokens += assistantMsg.TokenCount;
+        renderer.RenderTokenInfo(inputTokens, assistantMsg.TokenCount, session);
+
+        await contextManagementService.CheckAutoCompressionAsync(session).ConfigureAwait(false);
+        await contextManagementService.CheckMemoryExtractionAsync(session).ConfigureAwait(false);
+
+        // Auto-save session after each message
         await sessionStore.SaveSessionAsync(session).ConfigureAwait(false);
-        await sessionStore.SetLastActiveSessionIdAsync(session.Id).ConfigureAwait(false);
+    }
+
+    private void HandleGeneralException(Exception ex, ChatSession session)
+    {
+        AnsiConsole.MarkupLine("\n[red]╔════════════════════════════════════════════════════════╗[/]");
+        AnsiConsole.MarkupLine("[red]║[/] [bold red]An Error Occurred[/]                                      [red]║[/]");
+        AnsiConsole.MarkupLine("[red]╚════════════════════════════════════════════════════════╝[/]\n");
+
+        AnsiConsole.MarkupLine($"[bold red]Error:[/] {ex.GetType().Name}");
+        AnsiConsole.MarkupLine($"[bold red]Message:[/] {ex.Message}\n");
+
+        if (!string.IsNullOrEmpty(ex.StackTrace))
+        {
+            AnsiConsole.MarkupLine("[dim]Stack trace:[/]");
+            AnsiConsole.MarkupLine($"[dim]{ex.StackTrace}[/]\n");
+        }
+
+        AnsiConsole.MarkupLine("[yellow]The application will continue. You can try your request again.[/]\n");
+        
+        // Save session to preserve any progress
+        try
+        {
+            sessionStore.SaveSessionAsync(session).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+#pragma warning disable CA1031 // Intentionally catching all exceptions during error recovery
+        catch
+#pragma warning restore CA1031
+        {
+            // Ignore save errors during exception handling
+        }
     }
 
     private async Task LoadFilesAsync(ParsedInput parsed)

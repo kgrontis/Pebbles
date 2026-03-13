@@ -138,7 +138,7 @@ public sealed class CompositeCommandHandler : ICommandHandler
         {
             Name = "/memory",
             Description = "View or manage saved memories",
-            Usage = "/memory [clear]",
+            Usage = "/memory [[clear]]",
             Handler = (args, _) => Task.FromResult(_memoryCommands.HandleMemory(args))
         };
 

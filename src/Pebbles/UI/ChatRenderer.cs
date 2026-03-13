@@ -270,10 +270,25 @@ internal partial class ChatRenderer : IChatRenderer
                 // Standard output with status indicator
                 var color = result.Success ? "dim" : "red";
                 var icon = result.Success ? "●" : "✖";
+                
                 if (result.AllowMarkup)
-                    AnsiConsole.MarkupLine($"[{color}]{icon}[/] {result.Message}");
+                {
+                    // Message intentionally contains markup - try to render it
+                    try
+                    {
+                        AnsiConsole.MarkupLine($"[{color}]{icon}[/] {result.Message}");
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Markup parsing failed - escape the message to be safe
+                        AnsiConsole.MarkupLine($"[{color}]{icon}[/] {Markup.Escape(result.Message)}");
+                    }
+                }
                 else
-                    AnsiConsole.MarkupLine($"[{color}]{icon} {Markup.Escape(result.Message)}[/]");
+                {
+                    // Message is plain text - always escape
+                    AnsiConsole.MarkupLine($"[{color}]{icon}[/] {Markup.Escape(result.Message)}");
+                }
             }
         }
     }
