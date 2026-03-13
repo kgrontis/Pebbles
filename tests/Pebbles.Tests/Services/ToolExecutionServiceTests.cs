@@ -2,6 +2,7 @@ namespace Pebbles.Tests.Services;
 
 using Pebbles.Models;
 using Pebbles.Services;
+using System.Runtime.CompilerServices;
 
 #pragma warning disable CA2007 // xUnit recommends not using ConfigureAwait in tests
 
@@ -211,6 +212,29 @@ internal sealed class MockAIProviderWithTools : IAIProvider
         }
 
         return Task.FromResult(response);
+    }
+
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseWithToolsAsync(userInput, tools, toolResults, cancellationToken).ConfigureAwait(false);
+
+        // Stream thinking if present
+        if (!string.IsNullOrEmpty(response.Thinking))
+        {
+            yield return StreamingToolResponse.FromToken($"[THINKING]{response.Thinking}");
+        }
+
+        // Stream content if present
+        if (!string.IsNullOrEmpty(response.Content))
+        {
+            yield return StreamingToolResponse.FromToken(response.Content);
+        }
+
+        yield return StreamingToolResponse.FromResponse(response);
     }
 }
 

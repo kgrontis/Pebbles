@@ -1,5 +1,6 @@
 namespace Pebbles.Services;
 
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -7,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Pebbles.Configuration;
 using Pebbles.Models;
+using Pebbles.Services.Commands;
 
 /// <summary>
 /// Alibaba Cloud AI provider with streaming support (OpenAI-compatible API).
@@ -19,12 +21,14 @@ using Pebbles.Models;
 /// <param name="contextManager">The context manager for managing conversation context.</param>
 /// <param name="fileService">The file service for file operations.</param>
 /// <param name="systemPromptService">The system prompt service for generating system prompts.</param>
+/// <param name="skillCommands">The skill commands for accessing the active skill.</param>
 public sealed class AlibabaCloudProvider(
     HttpClient httpClient,
     PebblesOptions options,
     ContextManager contextManager,
     IFileService fileService,
-    ISystemPromptService systemPromptService) : IAIProvider
+    ISystemPromptService systemPromptService,
+    SkillCommands skillCommands) : IAIProvider
 {
     private readonly List<ChatMessage> _conversationHistory = [];
     private string _lastThinking = string.Empty;
@@ -201,7 +205,7 @@ public sealed class AlibabaCloudProvider(
         var context = contextManager.GetContextForPrompt();
         var files = fileService.FormatFilesForPrompt();
 
-        var systemPrompt = systemPromptService.GetAgentPrompt();
+        var systemPrompt = systemPromptService.GetAgentPrompt(skillCommands.ActiveSkill);
         if (!string.IsNullOrEmpty(context))
             systemPrompt += $"\n\n{context}";
         if (!string.IsNullOrEmpty(files))
@@ -383,6 +387,227 @@ public sealed class AlibabaCloudProvider(
         }
 
         return aiResponse;
+    }
+
+    /// <summary>
+    /// Streams response with tool calling support, showing thinking in real-time.
+    /// </summary>
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Add user message to history
+        _conversationHistory.Add(ChatMessage.User(userInput, 0));
+
+        // Add tool results as separate messages if provided
+        if (toolResults is not null && toolResults.Count > 0)
+        {
+            foreach (var result in toolResults)
+            {
+                _conversationHistory.Add(new ChatMessage
+                {
+                    Role = ChatRole.Tool,
+                    Content = result.Content,
+                    TokenCount = 0
+                });
+            }
+        }
+
+        var messages = BuildMessages();
+
+        var request = new ChatCompletionRequest
+        {
+            Model = options.DefaultModel,
+            Messages = messages,
+            Stream = true,
+            StreamOptions = new StreamOptions { IncludeUsage = true },
+            EnableThinking = true,
+            Tools = tools,
+            ToolChoice = "auto"
+        };
+
+        var url = $"{options.AlibabaCloudBaseUrl}/chat/completions";
+        var content = new StringContent(
+            JsonSerializer.Serialize(request, AlibabaCloudJsonContext.Default.ChatCompletionRequest),
+            Encoding.UTF8,
+            "application/json");
+
+        var responseContent = new StringBuilder();
+        var thinkingContent = new StringBuilder();
+        var isThinking = false;
+        var toolCalls = new Dictionary<int, ToolCall>();
+        var currentToolCallId = new Dictionary<int, string>();
+        var currentToolCallName = new Dictionary<int, StringBuilder>();
+        var currentToolCallArgs = new Dictionary<int, StringBuilder>();
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
+        httpRequest.Content = content;
+
+        var policy = RetryPolicies.GetApiPolicy();
+        using var response = await policy.ExecuteAsync(
+            async ct => await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+
+        while (true)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is null)
+                break;
+
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            if (!line.StartsWith("data: ", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var data = line[6..].Trim();
+            if (data == "[DONE]")
+                break;
+
+            if (string.IsNullOrEmpty(data))
+                continue;
+
+            StreamChunk? chunk;
+            try
+            {
+                chunk = JsonSerializer.Deserialize(data, AlibabaCloudJsonContext.Default.StreamChunk);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (chunk?.Choices is null || chunk.Choices.Count == 0)
+            {
+                // Check for usage in final chunk (choices may be empty)
+                if (chunk?.Usage is not null)
+                {
+                    _lastInputTokens = chunk.Usage.PromptTokens;
+                    _lastOutputTokens = chunk.Usage.CompletionTokens;
+                    _lastReasoningTokens = chunk.Usage.CompletionTokensDetails?.ReasoningTokens ?? 0;
+                    _lastCachedTokens = chunk.Usage.PromptTokensDetails?.CachedTokens ?? 0;
+                }
+                continue;
+            }
+
+            var choice = chunk.Choices[0];
+            var delta = choice.Delta;
+
+            // Handle reasoning/thinking content separately from regular content
+            if (!string.IsNullOrEmpty(delta?.ReasoningContent))
+            {
+                if (!isThinking)
+                {
+                    isThinking = true;
+                    _thinkingStopwatch.Restart();
+                }
+                thinkingContent.Append(delta.ReasoningContent);
+                yield return StreamingToolResponse.FromToken($"[THINKING]{delta.ReasoningContent}");
+                continue;
+            }
+
+            // Handle regular content
+            if (!string.IsNullOrEmpty(delta?.Content))
+            {
+                if (isThinking)
+                {
+                    isThinking = false;
+                    _thinkingStopwatch.Stop();
+                    _thinkingDuration = _thinkingStopwatch.Elapsed;
+                }
+                responseContent.Append(delta.Content);
+                yield return StreamingToolResponse.FromToken(delta.Content);
+            }
+
+            // Handle streaming tool calls
+            if (choice.ToolCalls is not null)
+            {
+                foreach (var streamToolCall in choice.ToolCalls)
+                {
+                    var index = streamToolCall.Index;
+
+                    // Initialize tool call on first appearance
+                    if (!toolCalls.ContainsKey(index))
+                    {
+                        var id = streamToolCall.Id ?? $"call_{index}";
+                        currentToolCallId[index] = id;
+                        currentToolCallName[index] = new StringBuilder();
+                        currentToolCallArgs[index] = new StringBuilder();
+                        toolCalls[index] = new ToolCall
+                        {
+                            Id = id,
+                            Type = streamToolCall.Type ?? "function",
+                            Function = new ToolCallFunction()
+                        };
+                    }
+
+                    // Accumulate function name
+                    if (streamToolCall.Function?.Name is not null)
+                    {
+                        currentToolCallName[index].Append(streamToolCall.Function.Name);
+                    }
+
+                    // Accumulate arguments
+                    if (streamToolCall.Function?.Arguments is not null)
+                    {
+                        currentToolCallArgs[index].Append(streamToolCall.Function.Arguments);
+                    }
+                }
+            }
+        }
+
+        // Store thinking content and duration
+        _lastThinking = thinkingContent.ToString();
+        if (isThinking)
+        {
+            _thinkingStopwatch.Stop();
+            _thinkingDuration = _thinkingStopwatch.Elapsed;
+        }
+
+        // Finalize tool calls
+        var finalToolCalls = new Collection<ToolCall>();
+        foreach (var kvp in toolCalls.OrderBy(x => x.Key))
+        {
+            var toolCall = kvp.Value;
+            var finalizedToolCall = new ToolCall
+            {
+                Id = toolCall.Id,
+                Type = toolCall.Type,
+                Function = new ToolCallFunction
+                {
+                    Name = currentToolCallName.TryGetValue(kvp.Key, out var nameBuilder) ? nameBuilder.ToString() : "",
+                    Arguments = currentToolCallArgs.TryGetValue(kvp.Key, out var argsBuilder) ? argsBuilder.ToString() : "{}"
+                }
+            };
+            finalToolCalls.Add(finalizedToolCall);
+        }
+
+        // Create final response
+        var aiResponse = new AIResponse
+        {
+            Content = responseContent.ToString(),
+            ToolCalls = finalToolCalls,
+            InputTokens = _lastInputTokens,
+            OutputTokens = _lastOutputTokens,
+            Thinking = thinkingContent.Length > 0 ? thinkingContent.ToString() : null,
+            ReasoningTokens = _lastReasoningTokens,
+            CachedTokens = _lastCachedTokens
+        };
+
+        // Add assistant response to history (only if no tool calls)
+        if (aiResponse.ToolCalls.Count == 0)
+        {
+            _conversationHistory.Add(ChatMessage.Assistant(aiResponse.Content, aiResponse.OutputTokens));
+        }
+
+        yield return StreamingToolResponse.FromResponse(aiResponse);
     }
 }
 

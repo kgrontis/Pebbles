@@ -15,6 +15,7 @@ public sealed class CompositeCommandHandler : ICommandHandler
     private readonly PluginCommands _pluginCommandsHandler;
     private readonly FileCommands _fileCommands;
     private readonly SessionCommands _sessionCommands;
+    private readonly SkillCommands _skillCommands;
     private readonly IModelPicker _modelPicker;
     private readonly PebblesOptions _options;
     private readonly ContextManager _contextManager;
@@ -26,6 +27,7 @@ public sealed class CompositeCommandHandler : ICommandHandler
         MemoryCommands memoryCommands,
         FileCommands fileCommands,
         SessionCommands sessionCommands,
+        SkillCommands skillCommands,
         IModelPicker modelPicker,
         PebblesOptions options,
         ContextManager contextManager,
@@ -37,6 +39,7 @@ public sealed class CompositeCommandHandler : ICommandHandler
         _memoryCommands = memoryCommands;
         _fileCommands = fileCommands;
         _sessionCommands = sessionCommands;
+        _skillCommands = skillCommands;
         _modelPicker = modelPicker;
         _options = options;
         _contextManager = contextManager;
@@ -220,6 +223,14 @@ public sealed class CompositeCommandHandler : ICommandHandler
             Description = "List available tools (built-in + plugins)",
             Usage = "/tools",
             Handler = (_, _) => Task.FromResult(_pluginCommandsHandler.HandleTools())
+        };
+
+        _commands["/skill"] = new SlashCommand
+        {
+            Name = "/skill",
+            Description = "List or activate skills",
+            Usage = "/skill [[name|off]]",
+            Handler = (args, _) => Task.FromResult(_skillCommands.HandleSkill(args))
         };
 
         _commands["/save"] = new SlashCommand

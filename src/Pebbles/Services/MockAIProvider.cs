@@ -1,6 +1,7 @@
 namespace Pebbles.Services;
 
 using Pebbles.Models;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
 /// <summary>
@@ -396,6 +397,16 @@ public class MockAIProvider() : IAIProvider
             Content = GetResponse(userInput).Content,
             ToolCalls = []
         });
+    }
+
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseWithToolsAsync(userInput, tools, toolResults, cancellationToken).ConfigureAwait(false);
+        yield return StreamingToolResponse.FromResponse(response);
     }
 
     public string GetLastThinking()

@@ -39,7 +39,7 @@ public interface IAIProvider
     void ClearHistory();
 
     /// <summary>
-    /// Gets a response with tool calling support.
+    /// Gets a response with tool calling support (non-streaming).
     /// </summary>
     /// <param name="userInput">User message</param>
     /// <param name="tools">List of tools available for this request</param>
@@ -47,6 +47,21 @@ public interface IAIProvider
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Response that may include tool calls</returns>
     Task<AIResponse> GetResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a streaming response with tool calling support.
+    /// Yields tokens prefixed with [THINKING] for thinking content.
+    /// </summary>
+    /// <param name="userInput">User message</param>
+    /// <param name="tools">List of tools available for this request</param>
+    /// <param name="toolResults">Results from previous tool calls (if continuing a conversation)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Stream of tokens and final response with tool calls</returns>
+    IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
         string userInput,
         IReadOnlyList<ToolDefinition> tools,
         List<ToolResult>? toolResults = null,

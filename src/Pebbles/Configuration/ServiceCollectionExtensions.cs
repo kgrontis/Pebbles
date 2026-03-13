@@ -72,6 +72,10 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<ISessionStore, SessionStore>();
         services.AddSingleton<SessionCommands>();
 
+        // Register skill services
+        services.AddSingleton<ISkillLoader, SkillLoader>();
+        services.AddSingleton<SkillCommands>();
+
         // Register command handlers (split by responsibility)
         services.AddCommandHandlers();
 
@@ -128,7 +132,8 @@ internal static class ServiceCollectionExtensions
                 var contextManager = sp.GetRequiredService<ContextManager>();
                 var fileService = sp.GetRequiredService<IFileService>();
                 var systemPromptService = sp.GetRequiredService<ISystemPromptService>();
-                return new AlibabaCloudProvider(httpClient, options, contextManager, fileService, systemPromptService);
+                var skillCommands = sp.GetRequiredService<SkillCommands>();
+                return new AlibabaCloudProvider(httpClient, options, contextManager, fileService, systemPromptService, skillCommands);
             });
         }
         else if (provider.Equals(ProviderNames.OpenAI, StringComparison.OrdinalIgnoreCase))

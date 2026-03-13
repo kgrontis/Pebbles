@@ -182,7 +182,7 @@ internal sealed class MockSystemPromptServiceForMemory() : ISystemPromptService
 {
     private string _userMemory = string.Empty;
 
-    public string GetAgentPrompt() => "You are a helpful assistant.";
+    public string GetAgentPrompt(Skill? activeSkill = null) => "You are a helpful assistant.";
 
     public string GetCompressionPrompt() => "Summarize the conversation.";
 
@@ -220,4 +220,14 @@ internal sealed class MockAIProviderForMemory : IAIProvider
 
     public Task<AIResponse> GetResponseWithToolsAsync(string userInput, IReadOnlyList<ToolDefinition> tools, List<ToolResult>? toolResults = null, CancellationToken cancellationToken = default)
         => Task.FromResult(new AIResponse { Content = _nextResponse });
+
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseWithToolsAsync(userInput, tools, toolResults, cancellationToken).ConfigureAwait(false);
+        yield return StreamingToolResponse.FromResponse(response);
+    }
 }

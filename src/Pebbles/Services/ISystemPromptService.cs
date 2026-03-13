@@ -1,5 +1,7 @@
 namespace Pebbles.Services;
 
+using Pebbles.Models;
+
 /// <summary>
 /// Provides system prompts for the AI assistant.
 /// </summary>
@@ -8,8 +10,9 @@ public interface ISystemPromptService
     /// <summary>
     /// Gets the main agent system prompt.
     /// </summary>
+    /// <param name="activeSkill">Optional active skill to include in the prompt.</param>
     /// <returns>The complete system prompt with user memory appended.</returns>
-    string GetAgentPrompt();
+    string GetAgentPrompt(Skill? activeSkill = null);
 
     /// <summary>
     /// Gets the compression system prompt for summarizing conversation history.

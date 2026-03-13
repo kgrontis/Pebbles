@@ -286,6 +286,38 @@ public sealed class AnthropicProvider(HttpClient httpClient, PebblesOptions opti
     {
         return (int)Math.Ceiling(text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length * 1.3);
     }
+
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Fall back to non-streaming for now
+        var response = await GetResponseWithToolsAsync(userInput, tools, toolResults, cancellationToken).ConfigureAwait(false);
+
+        // Stream thinking if present
+        if (!string.IsNullOrEmpty(response.Thinking))
+        {
+            foreach (var word in response.Thinking.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                yield return StreamingToolResponse.FromToken($"[THINKING]{word} ");
+                await Task.Delay(15, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // Stream content
+        if (!string.IsNullOrEmpty(response.Content))
+        {
+            foreach (var word in response.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                yield return StreamingToolResponse.FromToken(word + " ");
+                await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        yield return StreamingToolResponse.FromResponse(response);
+    }
 }
 
 #region Anthropic DTOs

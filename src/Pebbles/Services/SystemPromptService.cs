@@ -1,5 +1,7 @@
 namespace Pebbles.Services;
 
+using Pebbles.Models;
+
 /// <summary>
 /// Manages system prompts for the AI assistant.
 /// Supports loading from files, environment variable overrides, and user memory.
@@ -28,13 +30,21 @@ public class SystemPromptService : ISystemPromptService
     }
 
     /// <inheritdoc />
-    public string GetAgentPrompt()
+    public string GetAgentPrompt(Skill? activeSkill = null)
     {
         var promptPath = GetPromptPath("AGENTS.md");
         var basePrompt = LoadPrompt(promptPath);
         var userMemory = GetUserMemory();
 
-        return AppendUserMemory(basePrompt, userMemory);
+        var result = AppendUserMemory(basePrompt, userMemory);
+
+        // Append active skill if provided
+        if (activeSkill is not null)
+        {
+            result = AppendSkill(result, activeSkill);
+        }
+
+        return result;
     }
 
     /// <inheritdoc />
@@ -166,6 +176,27 @@ public class SystemPromptService : ISystemPromptService
         }
 
         return $"{basePrompt}\n\n---\n\n{userMemory}";
+    }
+
+    /// <summary>
+    /// Appends an active skill to the prompt with clear section markers.
+    /// </summary>
+    private static string AppendSkill(string basePrompt, Skill skill)
+    {
+        if (string.IsNullOrWhiteSpace(skill.Content))
+        {
+            return basePrompt;
+        }
+
+        return $"""
+            {basePrompt}
+
+            ---
+
+            ## Active Skill: {skill.Name}
+
+            {skill.Content}
+            """;
     }
 
     /// <summary>

@@ -287,6 +287,16 @@ internal sealed class MockAIProvider : IAIProvider
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new AIResponse { Content = _nextResponse });
 
+    public async IAsyncEnumerable<StreamingToolResponse> StreamResponseWithToolsAsync(
+        string userInput,
+        IReadOnlyList<ToolDefinition> tools,
+        List<ToolResult>? toolResults = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseWithToolsAsync(userInput, tools, toolResults, cancellationToken).ConfigureAwait(false);
+        yield return StreamingToolResponse.FromResponse(response);
+    }
+
     public string GetLastThinking() => string.Empty;
 
     public TimeSpan GetLastThinkingDuration() => TimeSpan.Zero;
@@ -297,7 +307,7 @@ internal sealed class MockAIProvider : IAIProvider
 /// </summary>
 internal sealed class MockSystemPromptService : ISystemPromptService
 {
-    public string GetAgentPrompt() => "You are a helpful assistant.";
+    public string GetAgentPrompt(Skill? activeSkill = null) => "You are a helpful assistant.";
 
     public string GetCompressionPrompt() => "Summarize the conversation.";
 
