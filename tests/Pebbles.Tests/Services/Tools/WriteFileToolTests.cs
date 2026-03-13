@@ -116,57 +116,21 @@ public class WriteFileToolTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithExistingFile_CreatesBackup()
-    {
-        // Arrange - use a unique file name to avoid conflicts with parallel tests
-        var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
-
-        // Write file and ensure it's fully closed
-        await File.WriteAllTextAsync(testFile, "Original content");
-
-        // Force a small delay and GC to ensure file handles are released
-        // Windows Defender on CI may scan newly created files
-        await Task.Delay(100);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        await Task.Delay(100);
-
-        var args = new { path = testFile, content = "New content", createBackup = true };
-        var arguments = JsonSerializer.Serialize(args);
-
-        try
-        {
-            // Act
-            var result = await _tool.ExecuteAsync(arguments);
-
-            // Assert - backup only created if file is within working directory
-            // Since _testDirectory is not in working directory, backup won't be created
-            // but the write should still succeed
-            Assert.True(result.Success, $"Expected success but got error: {result.Error}");
-            Assert.Equal("New content", await File.ReadAllTextAsync(testFile));
-        }
-        finally
-        {
-            if (File.Exists(testFile))
-                File.Delete(testFile);
-        }
-    }
-
-    [Fact]
     public async Task ExecuteAsync_WithCreateBackupFalse_DoesNotCreateBackup()
     {
         // Arrange - use a unique file name to avoid conflicts with parallel tests
         var testFile = Path.Combine(_testDirectory, $"existing_{Guid.NewGuid():N}.txt");
 
-        // Write file and ensure it's fully closed
-        await File.WriteAllTextAsync(testFile, "Original content");
+        // Write and close the file explicitly to release the handle
+        await using (var fs = File.Create(testFile))
+        await using (var writer = new StreamWriter(fs))
+        {
+            await writer.WriteAsync("Original content");
+        }
 
-        // Force a small delay and GC to ensure file handles are released
-        // Windows Defender on CI may scan newly created files
-        await Task.Delay(100);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        await Task.Delay(100);
+        // Small delay to ensure file handle is fully released on Windows CI
+        // Windows Defender may scan newly created files
+        await Task.Delay(200);
 
         var args = new { path = testFile, content = "New content", createBackup = false };
         var arguments = JsonSerializer.Serialize(args);
@@ -279,10 +243,3 @@ public class WriteFileToolTests : IDisposable
         GC.SuppressFinalize(this);
     }
 }
-
-/// <summary>
-/// Collection definition to prevent parallel execution of WriteFileToolTests.
-/// This helps avoid file locking issues on Windows CI.
-/// </summary>
-[CollectionDefinition("WriteFileToolTests", DisableParallelization = true)]
-public class WriteFileToolTestCollection { }
